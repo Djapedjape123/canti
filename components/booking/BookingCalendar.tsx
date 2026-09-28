@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { isSelectable, nextSelection, type SelectionContext } from "@/lib/calendar-selection";
 import type { Dictionary } from "@/lib/dictionaries";
-import { monthGrid, nightsBetween } from "@/lib/dates";
+import { addDays, monthGrid } from "@/lib/dates";
 import { fill, formatDateLong, formatMonthYear, formatPrice } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
 import { basePriceForNight, type BasePrices } from "@/lib/pricing";
 import { Icon } from "@/components/ui/Icon";
 
-// UI only for now: availability (Booking iCal + our reservations) and
-// price overrides are connected on Day 4. Booked days are already styled.
-
-const MAX_NIGHTS = 30;
+// Selection rules (exclusive check_out, no jumping over booked nights, max 30 nights)
+// live in lib/calendar-selection.ts. Price overrides come with Day 3.
 
 type BookingCalendarProps = {
   lang: Locale;
@@ -19,11 +18,13 @@ type BookingCalendarProps = {
   prices: BasePrices;
   /** 'YYYY-MM-DD' in Europe/Belgrade, from the server */
   today: string;
+  /** End of the availability window (exclusive), from the server */
+  until: string;
   checkIn: string | null;
   checkOut: string | null;
   onChange: (checkIn: string | null, checkOut: string | null) => void;
-  /** Nights that are taken. Empty until availability is connected. */
-  blocked?: ReadonlySet<string>;
+  /** Booked nights (Booking iCal, later also our reservations). */
+  blocked: ReadonlySet<string>;
 };
 
 function monthOf(date: string): { year: number; month: number } {
@@ -35,14 +36,20 @@ export function BookingCalendar({
   labels,
   prices,
   today,
+  until,
   checkIn,
   checkOut,
   onChange,
-  blocked = new Set(),
+  blocked,
 }: BookingCalendarProps) {
   const [view, setView] = useState(() => monthOf(checkIn ?? today));
   const currentMonth = monthOf(today);
+  const lastMonth = monthOf(addDays(until, -1));
   const canGoBack = view.year > currentMonth.year || view.month > currentMonth.month;
+  const canGoForward = view.year * 12 + view.month < lastMonth.year * 12 + lastMonth.month;
+
+  const ctx: SelectionContext = { today, until, blocked };
+  const selection = { checkIn, checkOut };
 
   const shift = (step: number) => {
     setView(({ year, month }) => {
@@ -52,15 +59,8 @@ export function BookingCalendar({
   };
 
   const select = (date: string) => {
-    if (!checkIn || checkOut || date <= checkIn) {
-      onChange(date, null);
-      return;
-    }
-    if (nightsBetween(checkIn, date) > MAX_NIGHTS) {
-      onChange(date, null);
-      return;
-    }
-    onChange(checkIn, date);
+    const next = nextSelection(selection, date, ctx);
+    onChange(next.checkIn, next.checkOut);
   };
 
   const cells = monthGrid(view.year, view.month);
@@ -83,8 +83,9 @@ export function BookingCalendar({
         <button
           type="button"
           onClick={() => shift(1)}
+          disabled={!canGoForward}
           aria-label={labels.nextMonth}
-          className="grid size-11 place-items-center rounded-full text-ink-900 transition-colors hover:bg-cream-100"
+          className="grid size-11 place-items-center rounded-full text-ink-900 transition-colors hover:bg-cream-100 disabled:opacity-30 disabled:hover:bg-transparent"
         >
           <Icon name="chevronRight" className="size-5" strokeWidth={1.75} />
         </button>
@@ -102,32 +103,43 @@ export function BookingCalendar({
         {cells.map((date, i) => {
           if (!date) return <span key={`empty-${i}`} aria-hidden="true" />;
 
-          const past = date < today;
           const isBlocked = blocked.has(date);
+          const selectable = isSelectable(date, selection, ctx);
           const isStart = date === checkIn;
           const isEnd = date === checkOut;
           const inRange = Boolean(checkIn && checkOut && date > checkIn && date < checkOut);
           const selected = isStart || isEnd || inRange;
+          // A booked night can still be our check-out day (the other guest arrives that day).
+          const checkOutOnly = isBlocked && (selectable || isEnd);
+          const priced = !isBlocked && date >= today && date < until;
           const price = basePriceForNight(date, prices);
 
           let tone = "text-ink-900 hover:bg-cream-100";
-          if (past) tone = "text-ink-600/40";
-          else if (isBlocked) tone = "text-ink-600/50 line-through bg-sand-200/40";
-          else if (isStart || isEnd) tone = "bg-brand-800 text-cream-50";
+          if (isStart || isEnd) tone = "bg-brand-800 text-cream-50";
           else if (inRange) tone = "bg-cream-100 text-ink-900 rounded-none";
+          else if (isBlocked && !selectable) tone = "text-ink-600/50 line-through bg-sand-200/40";
+          else if (!selectable) tone = "text-ink-600/40";
+
+          const status = isBlocked
+            ? checkOutOnly
+              ? labels.checkOutOnly
+              : labels.booked
+            : priced
+              ? formatPrice(price, lang)
+              : null;
 
           return (
             <button
               key={date}
               type="button"
-              disabled={past || isBlocked}
+              disabled={!selectable}
               onClick={() => select(date)}
               aria-pressed={selected}
-              aria-label={`${formatDateLong(date, lang)}, ${formatPrice(price, lang)}`}
+              aria-label={status ? `${formatDateLong(date, lang)}, ${status}` : formatDateLong(date, lang)}
               className={`flex min-h-12 flex-col items-center justify-center rounded-lg text-sm transition-colors disabled:cursor-not-allowed md:min-h-14 ${tone}`}
             >
               <span className="font-medium">{Number(date.slice(8))}</span>
-              {!past && !isBlocked ? (
+              {priced ? (
                 // On mobile the price is shown only on selected days (space).
                 <span
                   className={`text-[10px] leading-none ${selected ? "" : "hidden md:block"} ${

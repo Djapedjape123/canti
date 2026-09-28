@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Dictionary } from "@/lib/dictionaries";
 import { formatPrice } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
@@ -18,6 +18,10 @@ type BookingCardProps = {
   prices: BasePrices;
   fromPrice: number;
   today: string;
+  /** End of the availability window (exclusive) */
+  until: string;
+  /** Booked nights from the server; null when the Booking calendar could not be read. */
+  blocked: string[] | null;
   initialCheckIn: string | null;
   initialCheckOut: string | null;
 };
@@ -35,12 +39,27 @@ export function BookingCard({
   prices,
   fromPrice,
   today,
+  until,
+  blocked,
   initialCheckIn,
   initialCheckOut,
 }: BookingCardProps) {
   const [range, setRange] = useState({ checkIn: initialCheckIn, checkOut: initialCheckOut });
+  const blockedSet = useMemo(() => new Set(blocked ?? []), [blocked]);
   const quote =
     range.checkIn && range.checkOut ? quoteFromBasePrices(range.checkIn, range.checkOut, prices) : null;
+
+  const whatsappButton = (
+    <a
+      href={whatsappHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={buttonClasses("outline-dark", "mt-3 w-full")}
+    >
+      <Icon name="whatsapp" className="size-5" strokeWidth={1.5} />
+      {whatsappLabel}
+    </a>
+  );
 
   return (
     <div className="rounded-xl bg-cream-50 p-5 shadow-sm ring-1 ring-sand-200 md:p-6">
@@ -54,41 +73,44 @@ export function BookingCard({
       </div>
       <span aria-hidden="true" className="mt-3 block h-px w-16 bg-gold-500" />
 
-      <div className="mt-5">
-        <BookingCalendar
-          lang={lang}
-          labels={labels}
-          prices={prices}
-          today={today}
-          checkIn={range.checkIn}
-          checkOut={range.checkOut}
-          onChange={(checkIn, checkOut) => setRange({ checkIn, checkOut })}
-        />
-      </div>
-
-      {quote ? (
-        <div className="mt-5">
-          <PriceBreakdown lang={lang} labels={labels} nights={quote.nights} total={quote.total} />
+      {blocked === null ? (
+        <div role="status" className="mt-5 rounded-lg border border-sand-200 p-4">
+          <p className="text-sm leading-relaxed text-ink-900">{labels.calendarUnavailable}</p>
+          {whatsappButton}
         </div>
-      ) : null}
+      ) : (
+        <>
+          <div className="mt-5">
+            <BookingCalendar
+              lang={lang}
+              labels={labels}
+              prices={prices}
+              today={today}
+              until={until}
+              blocked={blockedSet}
+              checkIn={range.checkIn}
+              checkOut={range.checkOut}
+              onChange={(checkIn, checkOut) => setRange({ checkIn, checkOut })}
+            />
+          </div>
 
-      <button type="button" disabled className={buttonClasses("dark", "mt-5 w-full")}>
-        {labels.submit}
-      </button>
-      <p className="mt-3 text-center text-xs text-ink-600">{labels.requestNote}</p>
+          {quote ? (
+            <div className="mt-5">
+              <PriceBreakdown lang={lang} labels={labels} nights={quote.nights} total={quote.total} />
+            </div>
+          ) : null}
 
-      <div className="mt-5 rounded-lg border border-sand-200 p-4">
-        <p className="text-sm leading-relaxed text-ink-600">{labels.previewNote}</p>
-        <a
-          href={whatsappHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={buttonClasses("outline-dark", "mt-3 w-full")}
-        >
-          <Icon name="whatsapp" className="size-5" strokeWidth={1.5} />
-          {whatsappLabel}
-        </a>
-      </div>
+          <button type="button" disabled className={buttonClasses("dark", "mt-5 w-full")}>
+            {labels.submit}
+          </button>
+          <p className="mt-3 text-center text-xs text-ink-600">{labels.requestNote}</p>
+
+          <div className="mt-5 rounded-lg border border-sand-200 p-4">
+            <p className="text-sm leading-relaxed text-ink-600">{labels.previewNote}</p>
+            {whatsappButton}
+          </div>
+        </>
+      )}
     </div>
   );
 }

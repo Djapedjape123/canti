@@ -28,17 +28,22 @@ export function dayOfWeek(value: string): number {
   return parseIsoDate(value).getUTCDay();
 }
 
-/** "Today" as seen in Novi Sad, regardless of where the code runs. */
-export function todayInBelgrade(now: Date = new Date()): string {
+/** Calendar date in Novi Sad at the given instant, regardless of where the code runs. */
+export function dateInBelgrade(instant: Date): string {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Belgrade",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(now);
+  }).formatToParts(instant);
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     parts.find((part) => part.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/** "Today" as seen in Novi Sad. */
+export function todayInBelgrade(now: Date = new Date()): string {
+  return dateInBelgrade(now);
 }
 
 /** Number of nights between check-in and (exclusive) check-out. */

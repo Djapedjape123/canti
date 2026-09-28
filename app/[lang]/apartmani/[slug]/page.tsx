@@ -8,8 +8,10 @@ import { Gallery } from "@/components/home/Gallery";
 import { Container } from "@/components/ui/Container";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { getApartmentBySlug, getApartments } from "@/lib/apartments";
+import { getBlockedNights } from "@/lib/availability";
+import { rangeFromQuery } from "@/lib/calendar-selection";
 import { whatsappHref } from "@/lib/content";
-import { addDays, isIsoDate, todayInBelgrade } from "@/lib/dates";
+import { addDays, todayInBelgrade } from "@/lib/dates";
 import { getDictionary } from "@/lib/dictionaries";
 import { fill, formatPrice } from "@/lib/format";
 import { apartmentPath, hasLocale, locales, localizedPath } from "@/lib/i18n";
@@ -38,15 +40,6 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/apartmani/
   };
 }
 
-/** Only accept a valid, future range from the URL (?checkIn=…&checkOut=…). */
-function readRange(checkIn: unknown, checkOut: unknown, today: string) {
-  const inOk = typeof checkIn === "string" && isIsoDate(checkIn) && checkIn >= today;
-  if (!inOk) return { checkIn: null, checkOut: null };
-  const outOk =
-    typeof checkOut === "string" && isIsoDate(checkOut) && checkOut > checkIn && checkOut <= addDays(checkIn, 30);
-  return { checkIn, checkOut: outOk ? checkOut : null };
-}
-
 export default async function ApartmentPage({ params, searchParams }: PageProps<"/[lang]/apartmani/[slug]">) {
   const { lang, slug } = await params;
   if (!hasLocale(lang)) notFound();
@@ -57,7 +50,13 @@ export default async function ApartmentPage({ params, searchParams }: PageProps<
   const t = dict.apartment;
   const query = await searchParams;
   const today = todayInBelgrade();
-  const range = readRange(query.checkIn, query.checkOut, today);
+  // Availability window: today + 12 months. Only the dates of booked nights reach the browser.
+  const until = addDays(today, 365);
+  // null = Booking calendar unavailable (already logged, without the URL, in lib/booking-ical.ts)
+  const blocked = await getBlockedNights(apartment.slug, today, until).catch(() => null);
+  const range = blocked
+    ? rangeFromQuery(query.checkIn, query.checkOut, { today, until, blocked: new Set(blocked) })
+    : { checkIn: null, checkOut: null };
   const fromPrice = lowestBasePrice(apartment);
   const priceLabel = `${dict.booking.from} ${formatPrice(fromPrice, lang)} ${dict.booking.perNight}`;
   const others = (await getApartments()).filter((a) => a.slug !== apartment.slug).slice(0, 3);
@@ -156,6 +155,8 @@ export default async function ApartmentPage({ params, searchParams }: PageProps<
                 }}
                 fromPrice={fromPrice}
                 today={today}
+                until={until}
+                blocked={blocked}
                 initialCheckIn={range.checkIn}
                 initialCheckOut={range.checkOut}
               />
