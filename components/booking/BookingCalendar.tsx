@@ -11,6 +11,8 @@ import { Icon } from "@/components/ui/Icon";
 
 // Selection rules (exclusive check_out, no jumping over booked nights, max 30 nights)
 // live in lib/calendar-selection.ts, price rules in lib/pricing.ts.
+// Buttons that can be disabled get autoComplete="off": without it Firefox restores their
+// old disabled state after a reload and hydration fails (see types/react-button.d.ts).
 
 type BookingCalendarProps = {
   lang: Locale;
@@ -75,6 +77,7 @@ export function BookingCalendar({
           type="button"
           onClick={() => shift(-1)}
           disabled={!canGoBack}
+          autoComplete="off"
           aria-label={labels.previousMonth}
           className="grid size-11 place-items-center rounded-full text-ink-900 transition-colors hover:bg-cream-100 disabled:opacity-30 disabled:hover:bg-transparent"
         >
@@ -87,6 +90,7 @@ export function BookingCalendar({
           type="button"
           onClick={() => shift(1)}
           disabled={!canGoForward}
+          autoComplete="off"
           aria-label={labels.nextMonth}
           className="grid size-11 place-items-center rounded-full text-ink-900 transition-colors hover:bg-cream-100 disabled:opacity-30 disabled:hover:bg-transparent"
         >
@@ -136,6 +140,7 @@ export function BookingCalendar({
               key={date}
               type="button"
               disabled={!selectable}
+              autoComplete="off"
               onClick={() => select(date)}
               aria-pressed={selected}
               aria-label={status ? `${formatDateLong(date, lang)}, ${status}` : formatDateLong(date, lang)}
