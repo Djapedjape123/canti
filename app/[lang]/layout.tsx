@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -7,26 +6,11 @@ import { FloatingContact } from "@/components/layout/FloatingContact";
 import { getApartments } from "@/lib/apartments";
 import { siteContent, whatsappHref } from "@/lib/content";
 import { getDictionary } from "@/lib/dictionaries";
+import { fontVariables } from "@/lib/fonts";
 import { formatPrice } from "@/lib/format";
 import { apartmentPath, hasLocale, htmlLang, locales, localizedPath } from "@/lib/i18n";
 import { lowestBasePrice } from "@/lib/pricing";
 import "../globals.css";
-
-// latin-ext is required, otherwise Ć, č, đ, š, ž fall back to another font.
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin", "latin-ext"],
-  weight: ["600", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-cormorant",
-  display: "swap",
-});
-
-const manrope = Manrope({
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600"],
-  variable: "--font-manrope",
-  display: "swap",
-});
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
@@ -77,7 +61,7 @@ export default async function LangLayout({ children, params }: LayoutProps<"/[la
     : `${localizedPath(lang)}#apartmani`;
 
   return (
-    <html lang={htmlLang[lang]} className={`${cormorant.variable} ${manrope.variable}`}>
+    <html lang={htmlLang[lang]} className={fontVariables}>
       <body className="flex min-h-svh flex-col font-sans antialiased">
         <noscript>
           <style>{`[data-reveal="hidden"]{opacity:1!important;transform:none!important}`}</style>

@@ -5,9 +5,10 @@ import { getDictionary } from "@/lib/dictionaries";
 import { defaultLocale, hasLocale, localizedPath } from "@/lib/i18n";
 
 // not-found.tsx gets no props, so the language comes from next/root-params.
+// It is typed string | undefined because the admin root layout has no [lang].
 export default async function NotFound() {
   const value = await lang();
-  const locale = hasLocale(value) ? value : defaultLocale;
+  const locale = value !== undefined && hasLocale(value) ? value : defaultLocale;
   const t = getDictionary(locale).notFound;
 
   return (
