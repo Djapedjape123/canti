@@ -10,6 +10,10 @@ export type BasePrices = {
   priceSaturday: number;
 };
 
+/** Whole euros per night the owner may set. The API checks them again (lib/validation.ts). */
+export const MIN_PRICE = 1;
+export const MAX_PRICE = 10_000;
+
 /**
  * Prices the owner set for single nights: { 'YYYY-MM-DD': price }.
  * The key is the date the night STARTS (from the price_overrides table).

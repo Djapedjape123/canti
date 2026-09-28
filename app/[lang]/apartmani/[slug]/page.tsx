@@ -7,7 +7,7 @@ import { ApartmentCard } from "@/components/home/ApartmentCard";
 import { Gallery } from "@/components/home/Gallery";
 import { Container } from "@/components/ui/Container";
 import { Icon, type IconName } from "@/components/ui/Icon";
-import { getApartmentBySlug, getApartments } from "@/lib/apartments";
+import { getApartmentBySlug, getApartments, getPriceOverrides } from "@/lib/apartments";
 import { getBlockedNights } from "@/lib/availability";
 import { rangeFromQuery } from "@/lib/calendar-selection";
 import { whatsappHref } from "@/lib/content";
@@ -52,8 +52,12 @@ export default async function ApartmentPage({ params, searchParams }: PageProps<
   const today = todayInBelgrade();
   // Availability window: today + 12 months. Only the dates of booked nights reach the browser.
   const until = addDays(today, 365);
-  // null = Booking calendar unavailable (already logged, without the URL, in lib/booking-ical.ts)
-  const blocked = await getBlockedNights(apartment.slug, today, until).catch(() => null);
+  // Booked nights and the owner's prices for single nights, same window, loaded in parallel.
+  // blocked = null: Booking calendar unavailable (already logged, without the URL, in lib/booking-ical.ts)
+  const [blocked, overrides] = await Promise.all([
+    getBlockedNights(apartment.slug, today, until).catch(() => null),
+    getPriceOverrides(apartment.id, today, until),
+  ]);
   const range = blocked
     ? rangeFromQuery(query.checkIn, query.checkOut, { today, until, blocked: new Set(blocked) })
     : { checkIn: null, checkOut: null };
@@ -153,6 +157,7 @@ export default async function ApartmentPage({ params, searchParams }: PageProps<
                   priceFriday: apartment.priceFriday,
                   priceSaturday: apartment.priceSaturday,
                 }}
+                overrides={overrides}
                 fromPrice={fromPrice}
                 today={today}
                 until={until}

@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { dateInBelgrade, daysInclusive, todayInBelgrade } from "@/lib/dates";
+import { dateInBelgrade, daysInclusive, isIsoDate, todayInBelgrade } from "@/lib/dates";
+
+describe("isIsoDate", () => {
+  it("accepts real calendar dates", () => {
+    expect(isIsoDate("2026-02-28")).toBe(true);
+    expect(isIsoDate("2028-02-29")).toBe(true);
+    expect(isIsoDate("2026-12-31")).toBe(true);
+  });
+
+  it("refuses dates that do not exist, without throwing", () => {
+    for (const value of ["2026-02-30", "2027-02-29", "2026-13-01", "2026-00-10", "2026-02-32", "9999-99-99"]) {
+      expect(isIsoDate(value)).toBe(false);
+    }
+  });
+
+  it("refuses other formats", () => {
+    for (const value of ["2026-2-3", "31.12.2026", "2026-12-31T00:00:00Z", ""]) {
+      expect(isIsoDate(value)).toBe(false);
+    }
+  });
+});
 
 describe("dateInBelgrade", () => {
   it("uses the Belgrade date when UTC is still on the previous day (summer time, UTC+2)", () => {

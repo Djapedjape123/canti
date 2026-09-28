@@ -35,7 +35,7 @@ describe("setPricesSchema (PUT /api/admin/prices)", () => {
     );
   });
 
-  it.each(["2026-02-30", "2026-2-3", "31.12.2026", "", "2026-12-31T00:00:00Z"])("refuses the date %j", (date) => {
+  it.each(["2026-02-30", "2026-13-01", "2026-2-3", "31.12.2026", "", "2026-12-31T00:00:00Z"])("refuses the date %j", (date) => {
     expect(firstError(setPricesSchema.safeParse({ ...valid, from: date }))).toBe(m.date);
   });
 

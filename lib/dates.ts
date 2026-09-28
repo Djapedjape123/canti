@@ -6,7 +6,10 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isIsoDate(value: string): boolean {
   if (!ISO_DATE.test(value)) return false;
-  return toIsoDate(parseIsoDate(value)) === value;
+  const date = parseIsoDate(value);
+  // Month 13 or day 32 give an invalid Date (toISOString would throw);
+  // 2026-02-30 rolls over to 2 March, so the round trip does not match.
+  return !Number.isNaN(date.getTime()) && toIsoDate(date) === value;
 }
 
 export function parseIsoDate(value: string): Date {

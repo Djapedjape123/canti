@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, type SubmitEvent } from "react";
 import { buttonClasses } from "@/components/ui/Button";
 import { ADMIN_HOME_PATH } from "@/lib/admin-access";
 import { adminText } from "@/lib/admin-text";
@@ -22,7 +22,7 @@ export function LoginForm({ forbidden }: LoginFormProps) {
   const [error, setError] = useState<string | null>(forbidden ? text.forbidden : null);
   const [pending, setPending] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "").trim();

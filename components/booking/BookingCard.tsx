@@ -10,16 +10,14 @@ import { Icon } from "@/components/ui/Icon";
 import { BookingCalendar } from "./BookingCalendar";
 import { PriceBreakdown } from "./PriceBreakdown";
 
-// TODO: the apartment page will pass the owner's prices for single nights
-// (price_overrides table). Until then every night uses the base prices.
-const noOverrides: PriceOverrides = {};
-
 type BookingCardProps = {
   lang: Locale;
   labels: Dictionary["booking"];
   whatsappLabel: string;
   whatsappHref: string;
   prices: BasePrices;
+  /** The owner's prices for single nights in the availability window (from the server). */
+  overrides: PriceOverrides;
   fromPrice: number;
   today: string;
   /** End of the availability window (exclusive) */
@@ -41,6 +39,7 @@ export function BookingCard({
   whatsappLabel,
   whatsappHref,
   prices,
+  overrides,
   fromPrice,
   today,
   until,
@@ -51,7 +50,7 @@ export function BookingCard({
   const [range, setRange] = useState({ checkIn: initialCheckIn, checkOut: initialCheckOut });
   const blockedSet = useMemo(() => new Set(blocked ?? []), [blocked]);
   const stayQuote =
-    range.checkIn && range.checkOut ? quote(range.checkIn, range.checkOut, prices, noOverrides) : null;
+    range.checkIn && range.checkOut ? quote(range.checkIn, range.checkOut, prices, overrides) : null;
 
   const whatsappButton = (
     <a
@@ -89,7 +88,7 @@ export function BookingCard({
               lang={lang}
               labels={labels}
               prices={prices}
-              overrides={noOverrides}
+              overrides={overrides}
               today={today}
               until={until}
               blocked={blockedSet}

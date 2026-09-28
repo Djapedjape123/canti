@@ -1,11 +1,10 @@
 import { z } from "zod";
 import { isIsoDate, nightsBetween } from "./dates";
+import { MAX_PRICE, MIN_PRICE } from "./pricing";
 
 // zod schemas for every API input. The messages are in Serbian because they
 // reach the owner (and later guests); an API route answers with the first one.
 
-export const MIN_PRICE = 1;
-export const MAX_PRICE = 10_000;
 /** The owner can change at most this many days in one save (a leap year). */
 export const MAX_ADMIN_RANGE_DAYS = 366;
 
