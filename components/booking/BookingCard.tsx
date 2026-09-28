@@ -4,11 +4,15 @@ import { useMemo, useState } from "react";
 import type { Dictionary } from "@/lib/dictionaries";
 import { formatPrice } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
-import { quoteFromBasePrices, type BasePrices } from "@/lib/pricing";
+import { quote, type BasePrices, type PriceOverrides } from "@/lib/pricing";
 import { buttonClasses } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { BookingCalendar } from "./BookingCalendar";
 import { PriceBreakdown } from "./PriceBreakdown";
+
+// TODO: the apartment page will pass the owner's prices for single nights
+// (price_overrides table). Until then every night uses the base prices.
+const noOverrides: PriceOverrides = {};
 
 type BookingCardProps = {
   lang: Locale;
@@ -46,8 +50,8 @@ export function BookingCard({
 }: BookingCardProps) {
   const [range, setRange] = useState({ checkIn: initialCheckIn, checkOut: initialCheckOut });
   const blockedSet = useMemo(() => new Set(blocked ?? []), [blocked]);
-  const quote =
-    range.checkIn && range.checkOut ? quoteFromBasePrices(range.checkIn, range.checkOut, prices) : null;
+  const stayQuote =
+    range.checkIn && range.checkOut ? quote(range.checkIn, range.checkOut, prices, noOverrides) : null;
 
   const whatsappButton = (
     <a
@@ -85,6 +89,7 @@ export function BookingCard({
               lang={lang}
               labels={labels}
               prices={prices}
+              overrides={noOverrides}
               today={today}
               until={until}
               blocked={blockedSet}
@@ -94,9 +99,9 @@ export function BookingCard({
             />
           </div>
 
-          {quote ? (
+          {stayQuote ? (
             <div className="mt-5">
-              <PriceBreakdown lang={lang} labels={labels} nights={quote.nights} total={quote.total} />
+              <PriceBreakdown lang={lang} labels={labels} nights={stayQuote.nights} total={stayQuote.total} />
             </div>
           ) : null}
 

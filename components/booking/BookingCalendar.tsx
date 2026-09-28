@@ -6,16 +6,18 @@ import type { Dictionary } from "@/lib/dictionaries";
 import { addDays, monthGrid } from "@/lib/dates";
 import { fill, formatDateLong, formatMonthYear, formatPrice } from "@/lib/format";
 import type { Locale } from "@/lib/i18n";
-import { basePriceForNight, type BasePrices } from "@/lib/pricing";
+import { priceForNight, type BasePrices, type PriceOverrides } from "@/lib/pricing";
 import { Icon } from "@/components/ui/Icon";
 
 // Selection rules (exclusive check_out, no jumping over booked nights, max 30 nights)
-// live in lib/calendar-selection.ts. Price overrides come with Day 3.
+// live in lib/calendar-selection.ts, price rules in lib/pricing.ts.
 
 type BookingCalendarProps = {
   lang: Locale;
   labels: Dictionary["booking"];
   prices: BasePrices;
+  /** The owner's prices for single nights. */
+  overrides: PriceOverrides;
   /** 'YYYY-MM-DD' in Europe/Belgrade, from the server */
   today: string;
   /** End of the availability window (exclusive), from the server */
@@ -35,6 +37,7 @@ export function BookingCalendar({
   lang,
   labels,
   prices,
+  overrides,
   today,
   until,
   checkIn,
@@ -112,7 +115,7 @@ export function BookingCalendar({
           // A booked night can still be our check-out day (the other guest arrives that day).
           const checkOutOnly = isBlocked && (selectable || isEnd);
           const priced = !isBlocked && date >= today && date < until;
-          const price = basePriceForNight(date, prices);
+          const price = priceForNight(date, prices, overrides);
 
           let tone = "text-ink-900 hover:bg-cream-100";
           if (isStart || isEnd) tone = "bg-brand-800 text-cream-50";
