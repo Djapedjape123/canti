@@ -25,6 +25,8 @@ export const adminText = {
   api: {
     notLoggedIn: "Niste prijavljeni.",
     forbidden: "Nemate pristup.",
+    apartmentNotFound: "Apartman ne postoji.",
+    saveFailed: "Čuvanje nije uspelo, pokušajte ponovo.",
   },
   comingSoon: {
     calendar: "Ovde će biti kalendar cena po danima.",

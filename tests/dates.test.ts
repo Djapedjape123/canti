@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateInBelgrade, todayInBelgrade } from "@/lib/dates";
+import { dateInBelgrade, daysInclusive, todayInBelgrade } from "@/lib/dates";
 
 describe("dateInBelgrade", () => {
   it("uses the Belgrade date when UTC is still on the previous day (summer time, UTC+2)", () => {
@@ -19,5 +19,29 @@ describe("dateInBelgrade", () => {
   it("todayInBelgrade is the same helper", () => {
     const now = new Date("2026-09-28T23:10:00Z");
     expect(todayInBelgrade(now)).toBe("2026-09-29");
+  });
+});
+
+describe("daysInclusive (admin ranges: days, not nights)", () => {
+  it("includes both ends: 31 Dec – 2 Jan is 3 days", () => {
+    expect(daysInclusive("2026-12-31", "2027-01-02")).toEqual(["2026-12-31", "2027-01-01", "2027-01-02"]);
+  });
+
+  it("one day when from = to", () => {
+    expect(daysInclusive("2026-10-02", "2026-10-02")).toEqual(["2026-10-02"]);
+  });
+
+  it("is empty when `to` is before `from`", () => {
+    expect(daysInclusive("2026-10-05", "2026-10-04")).toEqual([]);
+  });
+
+  it("keeps every day across the switch to winter time", () => {
+    expect(daysInclusive("2026-10-24", "2026-10-26")).toEqual(["2026-10-24", "2026-10-25", "2026-10-26"]);
+  });
+
+  it("knows leap years", () => {
+    expect(daysInclusive("2028-02-28", "2028-03-01")).toEqual(["2028-02-28", "2028-02-29", "2028-03-01"]);
+    expect(daysInclusive("2026-01-01", "2026-12-31")).toHaveLength(365);
+    expect(daysInclusive("2028-01-01", "2028-12-31")).toHaveLength(366);
   });
 });

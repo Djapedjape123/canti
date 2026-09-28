@@ -53,6 +53,17 @@ export function nightsBetween(checkIn: string, checkOut: string): number {
 }
 
 /**
+ * Every date from `from` to `to`, BOTH included. Only for the admin calendar,
+ * where the owner picks days, not nights: 31.12 – 2.1 = 31.12, 1.1 and 2.1.
+ * Empty when `to` is before `from`.
+ */
+export function daysInclusive(from: string, to: string): string[] {
+  const days: string[] = [];
+  for (let day = from; day <= to; day = addDays(day, 1)) days.push(day);
+  return days;
+}
+
+/**
  * Days of a month laid out for a Monday-first calendar grid.
  * Leading cells before the 1st are null. `month` is 1–12.
  */
