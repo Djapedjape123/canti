@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import {
+  availableActions,
   formatReceivedAt,
   formatStayDates,
   guestsLabel,
@@ -13,6 +14,7 @@ import {
 import { adminText } from "@/lib/admin-text";
 import { fill, formatPrice } from "@/lib/format";
 import type { ReservationStatus } from "@/lib/supabase/types";
+import { ReservationActions } from "./ReservationActions";
 
 const t = adminText.reservations;
 
@@ -75,6 +77,7 @@ function ReservationCard({ reservation, today }: { reservation: AdminReservation
   const titleId = `reservation-${id}`;
   const note = stayNote(reservation, today);
   const isBlock = status === "blocked";
+  const actions = availableActions(reservation, today);
 
   return (
     <article aria-labelledby={titleId} className="rounded-xl bg-cream-50 p-4 shadow-sm ring-1 ring-sand-200 sm:p-5">
@@ -143,6 +146,15 @@ function ReservationCard({ reservation, today }: { reservation: AdminReservation
           ) : null}
         </div>
       )}
+
+      {actions.confirm || actions.cancel ? (
+        <ReservationActions
+          id={id}
+          canConfirm={actions.confirm}
+          canCancel={actions.cancel}
+          guestHasEmail={guestEmail !== null}
+        />
+      ) : null}
 
       <p className="mt-3 text-xs text-ink-600">
         {t.source[reservation.source]} · {fill(t.received, { date: formatReceivedAt(reservation.createdAt) })}

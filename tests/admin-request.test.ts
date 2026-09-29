@@ -25,13 +25,22 @@ describe("sendAdminChange", () => {
   it("sends JSON with the given method and reports success", async () => {
     fetchMock.mockResolvedValue(jsonResponse(200, { ok: true, days: 3 }));
 
-    await expect(sendAdminChange("/api/admin/prices", "PUT", change)).resolves.toEqual({ ok: true });
+    await expect(sendAdminChange("/api/admin/prices", "PUT", change)).resolves.toEqual({
+      ok: true,
+      data: { ok: true, days: 3 },
+    });
 
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("/api/admin/prices");
     expect(init?.method).toBe("PUT");
     expect(JSON.parse(String(init?.body))).toEqual(change);
     expect(new Headers(init?.headers).get("Content-Type")).toBe("application/json");
+  });
+
+  it("reports success with null data when the answer has no JSON", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(sendAdminChange("/api/admin/prices", "DELETE", change)).resolves.toEqual({ ok: true, data: null });
   });
 
   it("passes on the Serbian message of the API", async () => {

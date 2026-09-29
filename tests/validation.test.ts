@@ -3,6 +3,8 @@ import { addDays, todayInBelgrade } from "@/lib/dates";
 import {
   basePricesPatchSchema,
   createReservationSchema,
+  reservationIdSchema,
+  reservationStatusPatchSchema,
   resetPricesSchema,
   setPricesSchema,
   slugSchema,
@@ -179,5 +181,29 @@ describe("createReservationSchema (POST /api/reservations)", () => {
   it("refuses an unknown apartment slug and a body that is not an object", () => {
     expect(firstError(createReservationSchema.safeParse({ ...reservation, slug: "De Lux" }))).toBe(m.slug);
     expect(firstError(createReservationSchema.safeParse(undefined))).toBe(m.invalidRequest);
+  });
+});
+
+describe("reservationStatusPatchSchema (PATCH /api/admin/reservations/[id])", () => {
+  it("accepts confirmed and cancelled", () => {
+    expect(reservationStatusPatchSchema.parse({ status: "confirmed" })).toEqual({ status: "confirmed" });
+    expect(reservationStatusPatchSchema.parse({ status: "cancelled" })).toEqual({ status: "cancelled" });
+  });
+
+  it.each(["pending", "blocked", "CONFIRMED", "", null, undefined])("refuses the status %j", (status) => {
+    expect(firstError(reservationStatusPatchSchema.safeParse({ status }))).toBe(m.reservationStatus);
+  });
+
+  it("refuses a body that is not an object", () => {
+    expect(firstError(reservationStatusPatchSchema.safeParse(undefined))).toBe(m.invalidRequest);
+  });
+});
+
+describe("reservationIdSchema", () => {
+  it("accepts a uuid and refuses anything else", () => {
+    expect(reservationIdSchema.safeParse("3f0c2a4e-8b1d-4c7a-9e2f-5a6b7c8d9e0f").success).toBe(true);
+    for (const id of ["", "123", "not-a-uuid", "3f0c2a4e-8b1d-4c7a-9e2f-5a6b7c8d9e0"]) {
+      expect(reservationIdSchema.safeParse(id).success).toBe(false);
+    }
   });
 });

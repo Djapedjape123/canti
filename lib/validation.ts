@@ -22,6 +22,7 @@ export const validationMessages = {
   guests: "Unesite broj gostiju (najmanje 1).",
   nightsRange: "Rezervacija je moguća za 1 do 30 noći.",
   checkInPast: "Datum dolaska ne može biti u prošlosti.",
+  reservationStatus: "Status može biti samo potvrđena ili otkazana.",
 } as const;
 
 /** Outcomes of POST /api/reservations that are not about one field's format. */
@@ -122,7 +123,17 @@ export const createReservationSchema = z
   .refine(validNightsCount, { error: m.nightsRange, path: ["check_out"] })
   .refine(checkInNotInPast, { error: m.checkInPast, path: ["check_in"] });
 
+/** The [id] in /api/admin/reservations/[id]. Anything that is not a uuid cannot exist. */
+export const reservationIdSchema = z.uuid();
+
+/** PATCH /api/admin/reservations/[id]: the owner confirms or cancels. */
+export const reservationStatusPatchSchema = z.object(
+  { status: z.enum(["confirmed", "cancelled"], { error: m.reservationStatus }) },
+  { error: m.invalidRequest },
+);
+
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type SetPricesInput = z.infer<typeof setPricesSchema>;
 export type ResetPricesInput = z.infer<typeof resetPricesSchema>;
 export type BasePricesPatch = z.infer<typeof basePricesPatchSchema>;
+export type ReservationStatusPatch = z.infer<typeof reservationStatusPatchSchema>;

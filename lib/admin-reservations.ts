@@ -125,3 +125,66 @@ export function stayNote(
   if (checkIn < today && today < checkOut) return t.inProgress;
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Confirming and cancelling (PATCH /api/admin/reservations/[id])
+// ---------------------------------------------------------------------------
+
+/** What the owner can set. `pending` and `blocked` are only ever set on insert. */
+export type StatusChange = "confirmed" | "cancelled";
+
+/**
+ * Why the owner may not make this change, or null when it is allowed.
+ * The API route and the buttons both use it, so a button is never shown
+ * for a change the server would refuse.
+ *
+ *   pending   → confirmed or cancelled
+ *   confirmed → cancelled
+ *   blocked   → cancelled (frees the dates; a block has no guest to confirm)
+ *   cancelled → nothing: the dates may already be taken by someone else
+ *
+ * A stay that is over (check_out before today) no longer changes.
+ * On the check_out day itself the guest is still leaving, so it can.
+ */
+export function statusChangeError(
+  current: ReservationStatus,
+  next: StatusChange,
+  checkOut: string,
+  today: string,
+): string | null {
+  const e = t.changeErrors;
+  if (current === "cancelled") return e.alreadyCancelled;
+  if (checkOut < today) return e.stayOver;
+  if (next === "confirmed") {
+    if (current === "confirmed") return e.alreadyConfirmed;
+    if (current === "blocked") return e.blockCannotBeConfirmed;
+  }
+  return null;
+}
+
+/**
+ * Buttons on a card in the list. Blocks get none here: removing a block
+ * belongs to the calendar ("Odblokiraj").
+ */
+export function availableActions(
+  reservation: Pick<AdminReservation, "status" | "checkOut">,
+  today: string,
+): { confirm: boolean; cancel: boolean } {
+  const { status, checkOut } = reservation;
+  return {
+    confirm: statusChangeError(status, "confirmed", checkOut, today) === null,
+    cancel: status !== "blocked" && statusChangeError(status, "cancelled", checkOut, today) === null,
+  };
+}
+
+/** `guestNotified` from the PATCH answer. Anything unexpected counts as "not sent". */
+export function readGuestNotified(data: unknown): boolean {
+  return typeof data === "object" && data !== null && "guestNotified" in data && data.guestNotified === true;
+}
+
+/** The message after a change. Without an email the owner is told to call the guest. */
+export function statusChangeNotice(change: StatusChange, guestNotified: boolean): string {
+  const n = t.notices;
+  if (change === "confirmed") return guestNotified ? n.confirmedNotified : n.confirmedNotNotified;
+  return guestNotified ? n.cancelledNotified : n.cancelledNotNotified;
+}

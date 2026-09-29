@@ -30,6 +30,7 @@ export const adminText = {
     notLoggedIn: "Niste prijavljeni.",
     forbidden: "Nemate pristup.",
     apartmentNotFound: "Apartman ne postoji.",
+    reservationNotFound: "Rezervacija ne postoji.",
     saveFailed: "Čuvanje nije uspelo, pokušajte ponovo.",
   },
   /** Shared by every admin form that saves something. */
@@ -124,5 +125,32 @@ export const adminText = {
     guestsOne: "{n} gost",
     guestsFew: "{n} gosta",
     guestsMany: "{n} gostiju",
+    actions: {
+      label: "Akcije za rezervaciju",
+      confirm: "Potvrdi",
+      cancel: "Otkaži",
+      confirming: "Potvrđivanje…",
+      cancelling: "Otkazivanje…",
+      cancelQuestion: "Otkazati ovu rezervaciju?",
+      cancelHintEmail: "Datumi postaju slobodni, a gost dobija mejl.",
+      cancelHintNoEmail: "Datumi postaju slobodni. Gost nema mejl, javite mu se telefonom.",
+      cancelYes: "Da, otkaži",
+      cancelNo: "Ne",
+    },
+    /** Shown after a change; "notified" = the guest got an email. */
+    notices: {
+      confirmedNotified: "Potvrđeno ✓ Gostu je poslat mejl.",
+      confirmedNotNotified: "Potvrđeno ✓ Mejl gostu nije poslat, javite mu se telefonom.",
+      cancelledNotified: "Otkazano ✓ Datumi su slobodni, gostu je poslat mejl.",
+      cancelledNotNotified: "Otkazano ✓ Datumi su slobodni. Mejl gostu nije poslat, javite mu se telefonom.",
+    },
+    /** Why a status change is refused (PATCH /api/admin/reservations/[id] answers 409). */
+    changeErrors: {
+      alreadyConfirmed: "Ova rezervacija je već potvrđena.",
+      alreadyCancelled: "Ova rezervacija je već otkazana.",
+      blockCannotBeConfirmed: "Blokirani datumi se ne potvrđuju.",
+      stayOver: "Boravak je već prošao, rezervacija se više ne menja.",
+      changedMeanwhile: "Rezervacija je u međuvremenu promenjena. Osvežite stranicu.",
+    },
   },
 } as const;

@@ -1,12 +1,13 @@
 import { adminText } from "./admin-text";
 
-// Sends one change from the admin panel to the admin API (price editor and
-// base price form). Every failure comes back as a Serbian message.
+// Sends one change from the admin panel to the admin API (price editor, base
+// price form, reservation buttons). Every failure comes back as a Serbian message.
 
 /** A save without an answer after this long is reported as failed (no endless waiting). */
 export const ADMIN_REQUEST_TIMEOUT_MS = 15_000;
 
-export type AdminRequestResult = { ok: true } | { ok: false; message: string; login: boolean };
+/** On success, `data` is the API's JSON answer (null when it sent none). */
+export type AdminRequestResult = { ok: true; data: unknown } | { ok: false; message: string; login: boolean };
 
 export async function sendAdminChange(
   url: string,
@@ -22,7 +23,7 @@ export async function sendAdminChange(
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    if (response.ok) return { ok: true };
+    if (response.ok) return { ok: true, data: await response.json().catch(() => null) };
     // 401: the login has expired, the owner has to log in again.
     if (response.status === 401) return { ok: false, message: adminText.form.sessionExpired, login: true };
 

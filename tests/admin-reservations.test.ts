@@ -1,14 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  availableActions,
   DEFAULT_STATUS_FILTER,
   formatReceivedAt,
   formatStayDates,
   guestsLabel,
   nightsLabel,
   parseStatusFilter,
+  readGuestNotified,
   STATUS_FILTERS,
+  statusChangeError,
+  statusChangeNotice,
   stayNote,
 } from "@/lib/admin-reservations";
+import { adminText } from "@/lib/admin-text";
+
+const e = adminText.reservations.changeErrors;
+const n = adminText.reservations.notices;
 
 const TODAY = "2026-09-29";
 
@@ -95,5 +103,68 @@ describe("stayNote", () => {
     expect(stayNote({ ...stay, status: "pending" }, "2026-10-02")).toBe("Dolazak danas");
     expect(stayNote({ ...stay, status: "blocked" }, "2026-10-02")).toBeNull();
     expect(stayNote({ ...stay, status: "cancelled" }, "2026-10-03")).toBeNull();
+  });
+});
+
+describe("statusChangeError", () => {
+  const future = "2026-10-05";
+
+  it("lets a pending request be confirmed or cancelled", () => {
+    expect(statusChangeError("pending", "confirmed", future, TODAY)).toBeNull();
+    expect(statusChangeError("pending", "cancelled", future, TODAY)).toBeNull();
+  });
+
+  it("lets a confirmed reservation be cancelled, but not confirmed again", () => {
+    expect(statusChangeError("confirmed", "cancelled", future, TODAY)).toBeNull();
+    expect(statusChangeError("confirmed", "confirmed", future, TODAY)).toBe(e.alreadyConfirmed);
+  });
+
+  it("lets a block be removed, but never confirmed (it has no guest)", () => {
+    expect(statusChangeError("blocked", "cancelled", future, TODAY)).toBeNull();
+    expect(statusChangeError("blocked", "confirmed", future, TODAY)).toBe(e.blockCannotBeConfirmed);
+  });
+
+  it("never brings a cancelled reservation back (its dates may be taken)", () => {
+    expect(statusChangeError("cancelled", "confirmed", future, TODAY)).toBe(e.alreadyCancelled);
+    expect(statusChangeError("cancelled", "cancelled", future, TODAY)).toBe(e.alreadyCancelled);
+  });
+
+  it("allows changes up to the check_out day, not after", () => {
+    // check_out is exclusive: on that day the guest is still leaving.
+    expect(statusChangeError("confirmed", "cancelled", TODAY, TODAY)).toBeNull();
+    expect(statusChangeError("confirmed", "cancelled", "2026-09-28", TODAY)).toBe(e.stayOver);
+    expect(statusChangeError("pending", "confirmed", "2026-09-28", TODAY)).toBe(e.stayOver);
+  });
+});
+
+describe("availableActions", () => {
+  const future = "2026-10-05";
+
+  it("shows both buttons on a pending request and only Otkaži on a confirmed one", () => {
+    expect(availableActions({ status: "pending", checkOut: future }, TODAY)).toEqual({ confirm: true, cancel: true });
+    expect(availableActions({ status: "confirmed", checkOut: future }, TODAY)).toEqual({ confirm: false, cancel: true });
+  });
+
+  it("shows no buttons on blocks, cancelled ones and stays that are over", () => {
+    const none = { confirm: false, cancel: false };
+    expect(availableActions({ status: "blocked", checkOut: future }, TODAY)).toEqual(none);
+    expect(availableActions({ status: "cancelled", checkOut: future }, TODAY)).toEqual(none);
+    expect(availableActions({ status: "pending", checkOut: "2026-09-28" }, TODAY)).toEqual(none);
+  });
+});
+
+describe("notice after a change", () => {
+  it("reads guestNotified only when it is exactly true", () => {
+    expect(readGuestNotified({ id: "x", status: "confirmed", guestNotified: true })).toBe(true);
+    for (const data of [{ guestNotified: false }, { guestNotified: "true" }, {}, null, undefined, "ok"]) {
+      expect(readGuestNotified(data)).toBe(false);
+    }
+  });
+
+  it("tells the owner to call the guest when no email went out", () => {
+    expect(statusChangeNotice("confirmed", true)).toBe(n.confirmedNotified);
+    expect(statusChangeNotice("confirmed", false)).toBe(n.confirmedNotNotified);
+    expect(statusChangeNotice("cancelled", true)).toBe(n.cancelledNotified);
+    expect(statusChangeNotice("cancelled", false)).toBe(n.cancelledNotNotified);
   });
 });
