@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { bookingIcalEnvKey, parseBookingIcal, type BookingRange } from "@/lib/booking-ical";
+import { bookingIcalEnvKey, classifyBookingError, parseBookingIcal, type BookingRange } from "@/lib/booking-ical";
 import { isIsoDate } from "@/lib/dates";
+import { cacheCalls } from "./stubs/next-cache";
 
 // --- helpers -----------------------------------------------------------------
 
@@ -156,7 +157,54 @@ describe("bookingIcalEnvKey", () => {
   });
 });
 
-// --- getBookingRanges (fetch, cache options, fallback) ---------------------------
+// --- classifyBookingError ------------------------------------------------------
+
+/** What fetch() throws for a network problem: a TypeError with the system code in `cause`. */
+function fetchFailed(code: string): TypeError {
+  return new TypeError("fetch failed", { cause: Object.assign(new Error("boom"), { code }) });
+}
+
+describe("classifyBookingError", () => {
+  it.each([
+    ["ECONNRESET", "connection-reset"],
+    ["UND_ERR_SOCKET", "connection-reset"],
+    ["UND_ERR_CONNECT_TIMEOUT", "timeout"],
+    ["ETIMEDOUT", "timeout"],
+    ["ECONNREFUSED", "connect-failed"],
+    ["ENOTFOUND", "dns"],
+    ["EAI_AGAIN", "dns"],
+    ["CERT_HAS_EXPIRED", "tls"],
+    ["EPROTO", "network"],
+  ] as const)("maps %s to %s", (code, expected) => {
+    expect(classifyBookingError(fetchFailed(code))).toEqual({ code: expected, detail: code });
+  });
+
+  it("finds the code inside an AggregateError (IPv4 + IPv6 attempts)", () => {
+    const cause = new AggregateError([Object.assign(new Error("x"), { code: "ECONNREFUSED" })]);
+    expect(classifyBookingError(new TypeError("fetch failed", { cause }))).toEqual({
+      code: "connect-failed",
+      detail: "ECONNREFUSED",
+    });
+  });
+
+  it("recognizes the timeout from AbortSignal.timeout()", () => {
+    expect(classifyBookingError(new DOMException("The operation timed out.", "TimeoutError"))).toEqual({
+      code: "timeout",
+      detail: "TimeoutError",
+    });
+  });
+
+  it("falls back to the error name, never the message", () => {
+    const failure = classifyBookingError(new TypeError("Failed to parse URL from https://secret"));
+    expect(failure).toEqual({ code: "network", detail: "TypeError" });
+  });
+
+  it("does not trust a code that does not look like a system code", () => {
+    expect(classifyBookingError(fetchFailed("https://secret?t=1"))).toEqual({ code: "network", detail: "TypeError" });
+  });
+});
+
+// --- getBookingRanges (fetch, cache, retry, fallback) ------------------------------
 
 const SLUG = "test-apt";
 const SECRET = "secret-token-123";
@@ -178,20 +226,30 @@ describe("getBookingRanges", () => {
     return fetchMock;
   };
   const ok = (body = SAMPLE) => new Response(body, { status: 200 });
+  /** Runs the 1 s pause between attempts instantly. */
+  const settle = async <T,>(promise: Promise<T>): Promise<T> => {
+    promise.catch(() => {});
+    await vi.runAllTimersAsync();
+    return promise;
+  };
+  const logged = () => JSON.stringify([...warn.mock.calls, ...error.mock.calls]);
 
   beforeEach(() => {
     vi.resetModules();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    cacheCalls().length = 0;
     vi.stubEnv(bookingIcalEnvKey(SLUG), FAKE_URL);
     warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     error = vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    // Whatever happened in the test, the URL must never reach the logs.
-    const logged = JSON.stringify([...warn.mock.calls, ...error.mock.calls]);
-    expect(logged).not.toContain(SECRET);
-    expect(logged).not.toContain("example.test");
+    // Whatever happened in the test, the URL must never reach the logs or the cache key.
+    const everything = logged() + JSON.stringify(cacheCalls());
+    expect(everything).not.toContain(SECRET);
+    expect(everything).not.toContain("example.test");
 
+    vi.useRealTimers();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -207,17 +265,32 @@ describe("getBookingRanges", () => {
     expect(String(warn.mock.calls[0][0])).toContain("BOOKING_ICAL_URL_NO_URL");
   });
 
-  it("uses a 10 minute cache, a timeout and a User-Agent by default", async () => {
+  it("caches the parsed calendar for 10 minutes, never the raw answer", async () => {
     const { getBookingRanges } = await load();
     const fetchMock = stubFetch(ok());
 
     expect(await getBookingRanges(SLUG)).toEqual(EXPECTED);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(FAKE_URL);
-    expect(init?.next).toEqual({ revalidate: 600 });
-    expect(init?.cache).toBeUndefined();
+    // The request itself is not cached by Next.js: a bad answer must never be stored.
+    expect(init?.cache).toBe("no-store");
+    expect(init?.next).toBeUndefined();
     expect(init?.signal).toBeInstanceOf(AbortSignal);
     expect(new Headers(init?.headers).get("User-Agent")).toBeTruthy();
+    expect(cacheCalls()).toEqual([
+      { keyParts: expect.arrayContaining(["booking-ical", SLUG]), options: { revalidate: 600 } },
+    ]);
+  });
+
+  it("uses a new cache entry when the link changes", async () => {
+    const { getBookingRanges } = await load();
+    stubFetch(ok(), ok());
+
+    await getBookingRanges(SLUG);
+    vi.stubEnv(bookingIcalEnvKey(SLUG), `${FAKE_URL}-new`);
+    await getBookingRanges(SLUG);
+    const [first, second] = cacheCalls().map(({ keyParts }) => JSON.stringify(keyParts));
+    expect(first).not.toBe(second);
   });
 
   it("skips the cache with fresh: true", async () => {
@@ -225,54 +298,83 @@ describe("getBookingRanges", () => {
     const fetchMock = stubFetch(ok());
 
     await getBookingRanges(SLUG, { fresh: true });
-    const init = fetchMock.mock.calls[0][1];
-    expect(init?.cache).toBe("no-store");
-    expect(init?.next).toBeUndefined();
+    expect(fetchMock.mock.calls[0][1]?.cache).toBe("no-store");
+    expect(cacheCalls()).toEqual([]);
+  });
+
+  it("retries once after a dropped connection and logs why", async () => {
+    const { getBookingRanges } = await load();
+    const fetchMock = stubFetch(fetchFailed("ECONNRESET"), ok());
+
+    expect(await settle(getBookingRanges(SLUG, { fresh: true }))).toEqual(EXPECTED);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(error.mock.calls[0][0])).toMatch(/connection-reset \(ECONNRESET\), attempt 1\/2, fresh.*retrying/);
+    expect(String(warn.mock.calls[0][0])).toMatch(/attempt 2\/2/);
+  });
+
+  it("does not retry a link that does not exist", async () => {
+    const { getBookingRanges } = await load();
+    const fetchMock = stubFetch(new Response("", { status: 404 }));
+
+    const failure = await settle(getBookingRanges(SLUG)).catch((reason: unknown) => reason);
+    expect(failure).toMatchObject({ name: "BookingIcalError", code: "link-not-found", detail: "HTTP 404" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to the last good result when Booking fails", async () => {
     const { getBookingRanges } = await load();
-    stubFetch(ok(), new TypeError("fetch failed"));
+    stubFetch(ok(), new TypeError("fetch failed"), new TypeError("fetch failed"));
 
     expect(await getBookingRanges(SLUG)).toEqual(EXPECTED);
-    expect(await getBookingRanges(SLUG)).toEqual(EXPECTED);
-    expect(error).toHaveBeenCalledTimes(1);
+    expect(await settle(getBookingRanges(SLUG))).toEqual(EXPECTED);
+    expect(error).toHaveBeenCalledTimes(2);
+    expect(logged()).toContain("last good result");
   });
 
-  it("throws when Booking fails and there is no earlier result", async () => {
+  it("throws with the failure code when Booking fails and there is no earlier result", async () => {
     const { getBookingRanges, BookingIcalError } = await load();
-    stubFetch(new DOMException("The operation timed out.", "TimeoutError"));
+    const timeout = () => new DOMException("The operation timed out.", "TimeoutError");
+    stubFetch(timeout(), timeout());
 
-    await expect(getBookingRanges(SLUG)).rejects.toBeInstanceOf(BookingIcalError);
+    const failure = await settle(getBookingRanges(SLUG)).catch((reason: unknown) => reason);
+    expect(failure).toBeInstanceOf(BookingIcalError);
+    expect(failure).toMatchObject({ code: "timeout" });
   });
 
   it("never uses the fallback with fresh: true", async () => {
     const { getBookingRanges, BookingIcalError } = await load();
-    stubFetch(ok(), new TypeError("fetch failed"));
+    stubFetch(ok(), new TypeError("fetch failed"), new TypeError("fetch failed"));
 
     await getBookingRanges(SLUG);
-    await expect(getBookingRanges(SLUG, { fresh: true })).rejects.toBeInstanceOf(BookingIcalError);
+    await expect(settle(getBookingRanges(SLUG, { fresh: true }))).rejects.toBeInstanceOf(BookingIcalError);
   });
 
-  it("treats a non-200 answer as a failure", async () => {
+  it("treats a 5xx answer as a Booking server error (after a retry)", async () => {
     const { getBookingRanges } = await load();
-    stubFetch(new Response("error", { status: 500 }));
+    stubFetch(new Response("error", { status: 500 }), new Response("error", { status: 503 }));
 
-    await expect(getBookingRanges(SLUG)).rejects.toThrow(/HTTP 500/);
+    await expect(settle(getBookingRanges(SLUG))).rejects.toMatchObject({
+      code: "booking-server-error",
+      detail: "HTTP 503",
+    });
   });
 
-  it("treats an HTML page with status 200 as a failure", async () => {
+  it("treats an HTML page with status 200 as a failure and says what came back", async () => {
     const { getBookingRanges } = await load();
-    stubFetch(new Response("<html>Something went wrong</html>", { status: 200 }));
+    const html = () =>
+      new Response("<html>Something went wrong</html>", { status: 200, headers: { "content-type": "text/html" } });
+    stubFetch(html(), html());
 
-    await expect(getBookingRanges(SLUG)).rejects.toThrow(/not an iCal file/);
+    await expect(settle(getBookingRanges(SLUG))).rejects.toMatchObject({ code: "not-ical" });
+    expect(logged()).toContain("not-ical (text/html, 33 bytes)");
   });
 
   it("does not leak the URL when the fetch error message contains it", async () => {
     const { getBookingRanges } = await load();
-    stubFetch(new TypeError(`Failed to parse URL from ${FAKE_URL}`));
+    const leaky = () => new TypeError(`Failed to parse URL from ${FAKE_URL}`);
+    stubFetch(leaky(), leaky());
 
-    const failure = await getBookingRanges(SLUG).catch((reason: unknown) => reason);
+    const failure = await settle(getBookingRanges(SLUG)).catch((reason: unknown) => reason);
     expect(failure).toBeInstanceOf(Error);
     expect((failure as Error).message).not.toContain(SECRET);
   });

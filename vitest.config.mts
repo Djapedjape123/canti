@@ -7,6 +7,8 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./", import.meta.url)),
       // The real package throws outside a React Server Components build.
       "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
+      // unstable_cache needs a running Next.js server; the stub runs the function directly.
+      "next/cache": fileURLToPath(new URL("./tests/stubs/next-cache.ts", import.meta.url)),
     },
   },
   test: {
