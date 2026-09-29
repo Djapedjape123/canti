@@ -4,12 +4,24 @@ import Link from "next/link";
 import { useEffect, useState, type SubmitEvent } from "react";
 import { buttonClasses } from "@/components/ui/Button";
 import { ADMIN_LOGIN_PATH } from "@/lib/admin-access";
-import { parsePriceInput, rangeLabel, type DayRange } from "@/lib/admin-calendar";
+import { blockNotice, readBlockResult, readCount, summaryLines, unblockNotice } from "@/lib/admin-blocks";
+import { blockActions, parsePriceInput, rangeLabel, type DayRange, type RangeSummary } from "@/lib/admin-calendar";
 import { sendAdminChange } from "@/lib/admin-request";
 import { adminText } from "@/lib/admin-text";
 
 const t = adminText.editor;
+const b = adminText.blocks;
 const f = adminText.form;
+
+type Action = "save" | "reset" | "block" | "unblock";
+
+/** Where each button sends the picked days. */
+const REQUESTS = {
+  save: { url: "/api/admin/prices", method: "PUT" },
+  reset: { url: "/api/admin/prices", method: "DELETE" },
+  block: { url: "/api/admin/blocks", method: "PUT" },
+  unblock: { url: "/api/admin/blocks", method: "DELETE" },
+} as const satisfies Record<Action, { url: string; method: "PUT" | "DELETE" }>;
 
 type PriceEditorSheetProps = {
   apartmentSlug: string;
@@ -19,13 +31,15 @@ type PriceEditorSheetProps = {
   waitingForLastDay: boolean;
   /** The price all picked days share (prefills the input), or null. */
   initialPrice: number | null;
+  /** Who holds the picked days; decides which of Blokiraj / Odblokiraj are on. */
+  summary: RangeSummary | null;
   /** Result of the last save, shown after the editor closes. */
   notice: string | null;
   onCancel: () => void;
   onDone: (notice: string) => void;
 };
 
-type EditorError = { message: string; login: boolean };
+type EditorError = { action: Action; message: string; login: boolean };
 
 /**
  * Phone: a sheet fixed to the bottom of the screen. Desktop (lg): a panel next
@@ -37,13 +51,14 @@ export function PriceEditorSheet({
   range,
   waitingForLastDay,
   initialPrice,
+  summary,
   notice,
   onCancel,
   onDone,
 }: PriceEditorSheetProps) {
   const [value, setValue] = useState(initialPrice === null ? "" : String(initialPrice));
   const [error, setError] = useState<EditorError | null>(null);
-  const [pending, setPending] = useState<"save" | "reset" | null>(null);
+  const [pending, setPending] = useState<Action | null>(null);
 
   // Esc closes the editor (not while a save is running).
   useEffect(() => {
@@ -86,26 +101,31 @@ export function PriceEditorSheet({
 
   const { from, to } = range;
   const label = rangeLabel(range);
+  const allowed = summary ? blockActions(summary) : { block: true, unblock: true };
+  const priceError = error?.action === "save";
 
-  async function send(kind: "save" | "reset") {
-    const price = kind === "save" ? parsePriceInput(value) : null;
-    if (kind === "save" && price === null) {
-      setError({ message: f.priceInvalid, login: false });
+  async function send(action: Action) {
+    const price = action === "save" ? parsePriceInput(value) : null;
+    if (action === "save" && price === null) {
+      setError({ action, message: f.priceInvalid, login: false });
       return;
     }
 
-    setPending(kind);
+    setPending(action);
     setError(null);
-    const result =
-      kind === "save"
-        ? await sendAdminChange("/api/admin/prices", "PUT", { slug: apartmentSlug, from, to, price })
-        : await sendAdminChange("/api/admin/prices", "DELETE", { slug: apartmentSlug, from, to });
+    const { url, method } = REQUESTS[action];
+    const days = { slug: apartmentSlug, from, to };
+    const result = await sendAdminChange(url, method, action === "save" ? { ...days, price } : days);
     if (!result.ok) {
-      setError(result);
+      setError({ action, message: result.message, login: result.login });
       setPending(null);
       return;
     }
-    onDone(kind === "save" ? `${f.saved} · ${label} · ${price} €` : `${t.resetDone} · ${label}`);
+
+    if (action === "save") onDone(`${f.saved} · ${label} · ${price} €`);
+    else if (action === "reset") onDone(`${t.resetDone} · ${label}`);
+    else if (action === "block") onDone(blockNotice(readBlockResult(result.data)));
+    else onDone(unblockNotice(readCount(result.data, "unblockedNights")));
   }
 
   function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -113,10 +133,26 @@ export function PriceEditorSheet({
     void send("save");
   }
 
+  const errorMessage = error ? (
+    <p
+      id="price-error"
+      role="alert"
+      className="mt-3 rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm font-semibold text-ink-900"
+    >
+      {error.message}{" "}
+      {error.login ? (
+        <Link href={ADMIN_LOGIN_PATH} className="underline underline-offset-2">
+          {f.loginAgain}
+        </Link>
+      ) : null}
+    </p>
+  ) : null;
+  const isBlockError = error?.action === "block" || error?.action === "unblock";
+
   return (
     <section
       aria-labelledby="price-editor-title"
-      className="fixed inset-x-0 bottom-0 z-30 rounded-t-2xl bg-cream-50 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 shadow-lg ring-1 ring-sand-200 lg:sticky lg:inset-auto lg:top-6 lg:rounded-xl lg:p-5 lg:shadow-sm"
+      className="fixed inset-x-0 bottom-0 z-30 max-h-[85svh] overflow-y-auto rounded-t-2xl bg-cream-50 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 shadow-lg ring-1 ring-sand-200 lg:sticky lg:inset-auto lg:top-6 lg:max-h-none lg:overflow-visible lg:rounded-xl lg:p-5 lg:shadow-sm"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -153,8 +189,8 @@ export function PriceEditorSheet({
               enterKeyHint="done"
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              aria-invalid={error !== null}
-              aria-describedby={error ? "price-error" : undefined}
+              aria-invalid={priceError}
+              aria-describedby={priceError ? "price-error" : undefined}
               className="min-h-11 w-full rounded-lg border border-sand-200 bg-white pl-3 pr-9 text-base text-ink-900 focus:border-brand-800"
             />
             <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-ink-600">
@@ -167,20 +203,7 @@ export function PriceEditorSheet({
         </div>
       </form>
 
-      {error ? (
-        <p
-          id="price-error"
-          role="alert"
-          className="mt-3 rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm font-semibold text-ink-900"
-        >
-          {error.message}{" "}
-          {error.login ? (
-            <Link href={ADMIN_LOGIN_PATH} className="underline underline-offset-2">
-              {f.loginAgain}
-            </Link>
-          ) : null}
-        </p>
-      ) : null}
+      {isBlockError ? null : errorMessage}
 
       <button
         type="button"
@@ -190,6 +213,36 @@ export function PriceEditorSheet({
       >
         {pending === "reset" ? f.saving : t.reset}
       </button>
+
+      <div className="mt-4 border-t border-sand-200 pt-3">
+        <h3 className="text-sm font-semibold text-ink-900">{b.heading}</h3>
+        {summary ? (
+          <ul className="mt-1 space-y-0.5 text-sm leading-relaxed text-ink-600">
+            {summaryLines(summary).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => void send("block")}
+            disabled={pending !== null || !allowed.block}
+            className={buttonClasses("outline-dark", "px-3")}
+          >
+            {pending === "block" ? b.blocking : b.block}
+          </button>
+          <button
+            type="button"
+            onClick={() => void send("unblock")}
+            disabled={pending !== null || !allowed.unblock}
+            className={buttonClasses("outline-dark", "px-3")}
+          >
+            {pending === "unblock" ? b.unblocking : b.unblock}
+          </button>
+        </div>
+        {isBlockError ? errorMessage : null}
+      </div>
     </section>
   );
 }

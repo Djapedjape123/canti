@@ -43,8 +43,9 @@ export const adminText = {
     loginAgain: "Prijavite se ponovo",
   },
   calendar: {
-    title: "Kalendar cena",
-    intro: "Dodirnite dan da promenite cenu. Za više dana dodirnite prvi, pa poslednji dan.",
+    title: "Kalendar",
+    intro:
+      "Dodirnite dan da promenite cenu ili da ga blokirate. Za više dana dodirnite prvi, pa poslednji dan.",
     apartment: "Apartman",
     previousMonth: "Prethodni mesec",
     nextMonth: "Sledeći mesec",
@@ -52,9 +53,17 @@ export const adminText = {
     specialPrice: "posebna cena",
     pastDay: "prošao dan",
     today: "danas",
+    /** Who holds a night: the legend and the screen reader label of a day. */
+    nightStatus: {
+      free: "slobodno",
+      booking: "Booking",
+      pending: "čeka potvrdu",
+      confirmed: "potvrđena",
+      blocked: "blokirano",
+    },
     legendSpecial: "posebna cena",
-    legendSelected: "izabrano",
-    legendPast: "prošli dani",
+    bookingUnavailable:
+      "Booking kalendar trenutno nije dostupan, pa Booking dani možda nisu prikazani. Blokiranje radi čim se učita.",
     basePrices: "Osnovne cene",
     weekday: "radni dan",
     friday: "petak",
@@ -65,7 +74,7 @@ export const adminText = {
     daysMany: "{n} dana",
   },
   editor: {
-    title: "Izmena cene",
+    title: "Izmena",
     pickHint: "Izaberite dan u kalendaru. Za više dana dodirnite prvi, pa poslednji dan.",
     extendHint: "Za više dana dodirnite i poslednji dan.",
     priceLabel: "Cena po noći",
@@ -73,6 +82,37 @@ export const adminText = {
     reset: "Vrati osnovnu cenu",
     cancel: "Otkaži",
     resetDone: "Vraćena osnovna cena ✓",
+  },
+  /** Blocking and unblocking dates in the calendar (/api/admin/blocks). */
+  blocks: {
+    heading: "Dostupnost",
+    block: "Blokiraj",
+    unblock: "Odblokiraj",
+    blocking: "Blokiranje…",
+    unblocking: "Odblokiravanje…",
+    /** Lines of the summary under the heading; {days} = "2 dana". */
+    summary: {
+      free: "Slobodno: {days}",
+      blocked: "Blokirano: {days}",
+      booking: "Booking: {days}. Menja se samo na Booking.com.",
+      guests: "Gosti: {days}. Otkazuje se u Rezervacijama.",
+      past: "Prošli dani se ne menjaju.",
+      unknown: "Deo izbora je van prikazanih meseci.",
+    },
+    blockDone: "Blokirano {days} ✓",
+    skipped: "Preskočeno",
+    skippedBooking: "Booking {days}",
+    skippedReserved: "već zauzeto {days}",
+    unblockDone: "Odblokirano {days} ✓",
+    /** Why the API refuses (PUT and DELETE /api/admin/blocks). */
+    errors: {
+      pastDays: "Prošli dani se ne mogu blokirati ni odblokirati.",
+      bookingUnavailable:
+        "Booking kalendar trenutno nije dostupan, pa ne možemo da proverimo te dane. Pokušajte ponovo za par minuta.",
+      nothingToBlock: "Svi izabrani dani su već zauzeti ili blokirani.",
+      nothingToUnblock: "U izboru nema blokiranih dana.",
+      takenMeanwhile: "Neki od tih dana su se upravo zauzeli. Osvežite kalendar i pokušajte ponovo.",
+    },
   },
   settings: {
     title: "Osnovne cene",

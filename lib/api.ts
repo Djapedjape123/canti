@@ -3,6 +3,9 @@ import { validationMessages } from "./validation";
 // Helpers shared by the API routes. An error is always { error: string }
 // with a fitting HTTP status.
 
+/** Postgres: the reservations_no_overlap EXCLUDE constraint was violated (→ 409). */
+export const EXCLUSION_VIOLATION = "23P01";
+
 export function jsonError(message: string, status: number): Response {
   return Response.json({ error: message }, { status });
 }

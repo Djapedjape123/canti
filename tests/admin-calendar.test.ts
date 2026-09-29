@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addMonths,
+  blockActions,
   commonPrice,
   dayCount,
   formatLongDate,
@@ -10,11 +11,14 @@ import {
   loadedWindow,
   NO_SELECTION,
   nextDaySelection,
+  nightStatuses,
   parsePriceInput,
   parseYearMonth,
   rangeLabel,
+  rangeSummary,
   selectedRange,
   type DaySelection,
+  type RangeSummary,
 } from "@/lib/admin-calendar";
 import type { BasePrices } from "@/lib/pricing";
 
@@ -126,5 +130,94 @@ describe("prices in the editor", () => {
     for (const text of ["", "0", "10001", "12.5", "12,5", "-5", "abc", "1e3", "120 eur"]) {
       expect(parsePriceInput(text)).toBeNull();
     }
+  });
+});
+
+describe("night statuses (colors of the days)", () => {
+  const loaded = { from: "2026-10-01", until: "2026-11-01" };
+
+  it("marks Booking nights and our reservations, but not the check-out day", () => {
+    const booking = [{ start: "2026-10-02", end: "2026-10-04" }];
+    const own = [
+      { start: "2026-10-10", end: "2026-10-12", status: "pending" as const },
+      { start: "2026-10-12", end: "2026-10-13", status: "confirmed" as const },
+      { start: "2026-10-20", end: "2026-10-21", status: "blocked" as const },
+    ];
+    expect(nightStatuses(booking, own, loaded)).toEqual({
+      "2026-10-02": "booking",
+      "2026-10-03": "booking",
+      "2026-10-10": "pending",
+      "2026-10-11": "pending",
+      "2026-10-12": "confirmed",
+      "2026-10-20": "blocked",
+    });
+  });
+
+  it("shows our block over a Booking stay, so it can still be unblocked", () => {
+    const booking = [{ start: "2026-10-05", end: "2026-10-07" }];
+    const own = [{ start: "2026-10-06", end: "2026-10-07", status: "blocked" as const }];
+    expect(nightStatuses(booking, own, loaded)).toEqual({ "2026-10-05": "booking", "2026-10-06": "blocked" });
+  });
+
+  it("leaves out nights outside the loaded months", () => {
+    const booking = [{ start: "2026-09-29", end: "2026-10-02" }];
+    const own = [{ start: "2026-10-31", end: "2026-11-03", status: "blocked" as const }];
+    expect(nightStatuses(booking, own, loaded)).toEqual({
+      "2026-10-01": "booking",
+      "2026-10-31": "blocked",
+    });
+  });
+});
+
+describe("range summary and buttons", () => {
+  const loaded = { from: "2026-09-01", until: "2026-12-01" };
+  const today = "2026-10-10";
+  const statuses = {
+    "2026-10-12": "booking",
+    "2026-10-13": "booking",
+    "2026-10-14": "pending",
+    "2026-10-15": "confirmed",
+    "2026-10-16": "blocked",
+  } as const;
+  const none: RangeSummary = { free: 0, booking: 0, guests: 0, blocked: 0, past: 0, unknown: false };
+
+  it("counts every picked day by who holds its night", () => {
+    expect(rangeSummary({ from: "2026-10-10", to: "2026-10-17" }, statuses, today, loaded)).toEqual({
+      ...none,
+      free: 3, // 10, 11, 17
+      booking: 2,
+      guests: 2,
+      blocked: 1,
+    });
+  });
+
+  it("counts days before today as past, whatever their status", () => {
+    expect(rangeSummary({ from: "2026-10-08", to: "2026-10-10" }, { "2026-10-08": "blocked" }, today, loaded)).toEqual({
+      ...none,
+      free: 1,
+      past: 2,
+    });
+  });
+
+  it("knows when part of the range is outside the loaded months", () => {
+    expect(rangeSummary({ from: "2026-11-30", to: "2026-12-02" }, {}, today, loaded)).toEqual({
+      ...none,
+      free: 1,
+      unknown: true,
+    });
+  });
+
+  it("offers Blokiraj only with a free day and Odblokiraj only with a blocked one", () => {
+    expect(blockActions({ ...none, free: 1 })).toEqual({ block: true, unblock: false });
+    expect(blockActions({ ...none, blocked: 1 })).toEqual({ block: false, unblock: true });
+    expect(blockActions({ ...none, free: 2, blocked: 1 })).toEqual({ block: true, unblock: true });
+  });
+
+  it("offers nothing for Booking days, guests or past days", () => {
+    expect(blockActions({ ...none, booking: 2, guests: 1, past: 3 })).toEqual({ block: false, unblock: false });
+  });
+
+  it("leaves both on when part of the range is not loaded (the server decides)", () => {
+    expect(blockActions({ ...none, unknown: true })).toEqual({ block: true, unblock: true });
   });
 });

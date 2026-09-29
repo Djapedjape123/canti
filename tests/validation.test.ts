@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { addDays, todayInBelgrade } from "@/lib/dates";
 import {
   basePricesPatchSchema,
+  blockDatesSchema,
   createReservationSchema,
   reservationIdSchema,
   reservationStatusPatchSchema,
@@ -84,6 +85,22 @@ describe("resetPricesSchema (DELETE /api/admin/prices)", () => {
 
   it("uses the same range rules", () => {
     expect(firstError(resetPricesSchema.safeParse({ ...valid, from: "2027-01-03" }))).toBe(m.rangeOrder);
+  });
+});
+
+describe("blockDatesSchema (PUT and DELETE /api/admin/blocks)", () => {
+  const range = { slug: "de-lux", from: "2026-12-31", to: "2027-01-02" };
+
+  it("accepts a range of days and a single day", () => {
+    expect(blockDatesSchema.parse(range)).toStrictEqual(range);
+    expect(firstError(blockDatesSchema.safeParse({ ...range, to: range.from }))).toBeNull();
+  });
+
+  it("refuses a wrong order, a broken date, an unknown slug and a missing body", () => {
+    expect(firstError(blockDatesSchema.safeParse({ ...range, from: "2027-01-03" }))).toBe(m.rangeOrder);
+    expect(firstError(blockDatesSchema.safeParse({ ...range, to: "2027-02-30" }))).toBe(m.date);
+    expect(firstError(blockDatesSchema.safeParse({ ...range, slug: "De Lux" }))).toBe(m.slug);
+    expect(firstError(blockDatesSchema.safeParse(undefined))).toBe(m.invalidRequest);
   });
 });
 

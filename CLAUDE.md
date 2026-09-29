@@ -206,6 +206,8 @@ Datum je zauzet čim rezervacija uđe kao `pending`. Vlasnik u adminu klikne **P
 |---|---|---|
 | `/api/admin/prices` | PUT | Postavi cenu za raspon: `{ slug, from, to, price }` (upsert) |
 | `/api/admin/prices` | DELETE | Vrati na osnovnu cenu za raspon: `{ slug, from, to }` |
+| `/api/admin/blocks` | PUT | Blokiraj raspon dana: `{ slug, from, to }`. Zauzete noći (Booking, gosti) preskače, a Booking proverava bez keša (503 ako ne odgovara) |
+| `/api/admin/blocks` | DELETE | Odblokiraj raspon: `{ slug, from, to }`. Dira samo `blocked` redove i deli blokadu ako treba (SQL funkcija `unblock_nights`) |
 | `/api/admin/apartments/[slug]` | PATCH | Promeni `price_weekday` / `price_friday` / `price_saturday` |
 | `/api/admin/reservations` | GET | Lista (filter po statusu, buduće prvo) |
 | `/api/admin/reservations` | POST | Ručna rezervacija ili blokada (`source = 'admin'`) |

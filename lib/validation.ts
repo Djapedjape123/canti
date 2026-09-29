@@ -63,11 +63,17 @@ export const setPricesSchema = z
   .refine(fromNotAfterTo, { error: m.rangeOrder, path: ["to"] })
   .refine(withinMaxDays, { error: m.rangeLength, path: ["to"] });
 
-/** DELETE /api/admin/prices: those days go back to the base price. */
-export const resetPricesSchema = z
+/** An apartment and a range of days, `to` included. */
+export const adminDayRangeSchema = z
   .object({ slug: slugSchema, from: isoDateSchema, to: isoDateSchema }, { error: m.invalidRequest })
   .refine(fromNotAfterTo, { error: m.rangeOrder, path: ["to"] })
   .refine(withinMaxDays, { error: m.rangeLength, path: ["to"] });
+
+/** DELETE /api/admin/prices: those days go back to the base price. */
+export const resetPricesSchema = adminDayRangeSchema;
+
+/** PUT /api/admin/blocks (block those days) and DELETE /api/admin/blocks (unblock them). */
+export const blockDatesSchema = adminDayRangeSchema;
 
 /** PATCH /api/admin/apartments/[slug]: any of the three base prices, at least one. */
 export const basePricesPatchSchema = z
@@ -135,5 +141,6 @@ export const reservationStatusPatchSchema = z.object(
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type SetPricesInput = z.infer<typeof setPricesSchema>;
 export type ResetPricesInput = z.infer<typeof resetPricesSchema>;
+export type BlockDatesInput = z.infer<typeof blockDatesSchema>;
 export type BasePricesPatch = z.infer<typeof basePricesPatchSchema>;
 export type ReservationStatusPatch = z.infer<typeof reservationStatusPatchSchema>;

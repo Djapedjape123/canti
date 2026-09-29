@@ -1,4 +1,5 @@
 import "server-only";
+import type { ActiveStatus, OwnRange } from "./admin-calendar";
 import { PAST_LIMIT, type AdminReservation, type StatusFilter } from "./admin-reservations";
 import { getApartments } from "./apartments";
 import type { BookingRange } from "./booking-ical";
@@ -6,24 +7,35 @@ import { getSupabaseAdmin } from "./supabase/admin";
 import type { ReservationRow } from "./supabase/types";
 
 /** Statuses that hold the dates. A cancelled reservation frees them. */
-export const BLOCKING_STATUSES = ["pending", "confirmed", "blocked"] as const;
+export const BLOCKING_STATUSES = ["pending", "confirmed", "blocked"] as const satisfies readonly ActiveStatus[];
 
 /**
- * Our own reservations that touch [from, to), as [check_in, check_out) ranges:
- * the same shape as Booking's ranges, so both go through nightsFromRanges.
- * Only dates are selected, never guest data.
+ * Our own reservations that touch [from, to), as [check_in, check_out) ranges
+ * with their status. Only dates and status are selected, never guest data.
  */
-export async function getReservationRanges(apartmentId: string, from: string, to: string): Promise<BookingRange[]> {
+export async function getActiveReservationRanges(apartmentId: string, from: string, to: string): Promise<OwnRange[]> {
   const { data, error } = await getSupabaseAdmin()
     .from("reservations")
-    .select("check_in, check_out")
+    .select("check_in, check_out, status")
     .eq("apartment_id", apartmentId)
     .in("status", [...BLOCKING_STATUSES])
     // Overlap with [from, to): starts before `to` and ends after `from` (check_out is exclusive).
     .lt("check_in", to)
     .gt("check_out", from);
   if (error) throw new Error(`Loading reservations failed: ${error.message}`);
-  return data.map((row) => ({ start: row.check_in, end: row.check_out }));
+  // The filter above already leaves cancelled rows out; this only tells TypeScript.
+  return data.flatMap((row) =>
+    row.status === "cancelled" ? [] : [{ start: row.check_in, end: row.check_out, status: row.status }],
+  );
+}
+
+/**
+ * The same, without the status: the same shape as Booking's ranges,
+ * so both go through nightsFromRanges.
+ */
+export async function getReservationRanges(apartmentId: string, from: string, to: string): Promise<BookingRange[]> {
+  const ranges = await getActiveReservationRanges(apartmentId, from, to);
+  return ranges.map(({ start, end }) => ({ start, end }));
 }
 
 // ---------------------------------------------------------------------------

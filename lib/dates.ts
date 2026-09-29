@@ -56,6 +56,24 @@ export function nightsBetween(checkIn: string, checkOut: string): number {
 }
 
 /**
+ * Every night covered by `ranges` inside [from, to), sorted, without duplicates.
+ * Ranges are [start, end): the end date itself is free (check_out is exclusive).
+ */
+export function nightsFromRanges(
+  ranges: readonly { start: string; end: string }[],
+  from: string,
+  to: string,
+): string[] {
+  const nights = new Set<string>();
+  for (const range of ranges) {
+    const first = range.start > from ? range.start : from;
+    const end = range.end < to ? range.end : to;
+    for (let night = first; night < end; night = addDays(night, 1)) nights.add(night);
+  }
+  return [...nights].sort();
+}
+
+/**
  * Every date from `from` to `to`, BOTH included. Only for the admin calendar,
  * where the owner picks days, not nights: 31.12 – 2.1 = 31.12, 1.1 and 2.1.
  * Empty when `to` is before `from`.

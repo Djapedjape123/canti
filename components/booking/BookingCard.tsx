@@ -198,7 +198,9 @@ export function BookingCard({
             </div>
           ) : null}
 
-          <form onSubmit={onSubmit} className="mt-5 grid gap-4">
+          {/* autoComplete="off": Firefox otherwise restores the submit button's disabled state after a
+              reload and React reports a hydration mismatch. The inputs keep their own autocomplete. */}
+          <form onSubmit={onSubmit} autoComplete="off" className="mt-5 grid gap-4">
             <label className={labelClass}>
               {labels.guestName}
               <input

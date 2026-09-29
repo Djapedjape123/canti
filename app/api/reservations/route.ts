@@ -1,5 +1,5 @@
 import { getApartmentBySlug, getPriceOverrides } from "@/lib/apartments";
-import { jsonError, logError, readJson, validationError } from "@/lib/api";
+import { EXCLUSION_VIOLATION, jsonError, logError, readJson, validationError } from "@/lib/api";
 import { nightsFromRanges } from "@/lib/availability";
 import { getBookingRanges, type BookingRange } from "@/lib/booking-ical";
 import { sendGuestReservationEmail, sendOwnerReservationEmail } from "@/lib/email";
@@ -7,9 +7,6 @@ import { quote } from "@/lib/pricing";
 import { checkRateLimit, ipFromHeaders } from "@/lib/rate-limit";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { createReservationSchema, reservationMessages, validationMessages } from "@/lib/validation";
-
-// Postgres: the reservations_no_overlap EXCLUDE constraint was violated.
-const EXCLUSION_VIOLATION = "23P01";
 
 /**
  * POST { slug, check_in, check_out, guest_name, guest_email, guest_phone, guests }

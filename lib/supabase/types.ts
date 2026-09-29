@@ -96,7 +96,13 @@ export type Database = {
       };
     };
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      /** supabase/migrations/0002_unblock_nights.sql. p_to is exclusive; returns the freed nights. */
+      unblock_nights: {
+        Args: { p_apartment_id: string; p_from: string; p_to: string };
+        Returns: number;
+      };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

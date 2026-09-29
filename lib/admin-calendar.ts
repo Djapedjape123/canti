@@ -1,7 +1,8 @@
 import { adminText } from "./admin-text";
-import { daysInclusive, nightsBetween, parseIsoDate } from "./dates";
+import { daysInclusive, nightsBetween, nightsFromRanges, parseIsoDate } from "./dates";
 import { plural } from "./plural";
 import { MAX_PRICE, MIN_PRICE, priceForNight, type BasePrices, type PriceOverrides } from "./pricing";
+import type { ReservationStatus } from "./supabase/types";
 
 // Pure logic of the admin price calendar (app/admin/(panel)/kalendar).
 // Here the owner picks DAYS, not nights, so a range includes both ends:
@@ -119,8 +120,90 @@ export function parsePriceInput(text: string): number | null {
 }
 
 // ---------------------------------------------------------------------------
+// Who holds each night (the colors of the days, blocking and unblocking)
+// A day in this calendar stands for the night that starts on it.
+// ---------------------------------------------------------------------------
+
+/** Our statuses that hold dates (a cancelled reservation frees them). */
+export type ActiveStatus = Exclude<ReservationStatus, "cancelled">;
+/** Why a night is not free. */
+export type NightStatus = "booking" | ActiveStatus;
+/** { 'YYYY-MM-DD': status }. A free night has no entry. */
+export type NightStatuses = Record<string, NightStatus>;
+/** One of our reservations: only its dates and status, never guest data. */
+export type OwnRange = { start: string; end: string; status: ActiveStatus };
+
+/**
+ * The status of every taken night in the loaded window.
+ * When a night is both on Booking and ours, OUR status is shown: an old block
+ * under a Booking stay must stay visible, so the owner can still unblock it
+ * (else our iCal export would keep that night closed on Booking).
+ */
+export function nightStatuses(
+  bookingRanges: readonly { start: string; end: string }[],
+  ownRanges: readonly OwnRange[],
+  loaded: LoadedWindow,
+): NightStatuses {
+  const statuses: NightStatuses = {};
+  for (const night of nightsFromRanges(bookingRanges, loaded.from, loaded.until)) statuses[night] = "booking";
+  // Our reservations never overlap each other (the EXCLUDE constraint), so the order does not matter.
+  for (const range of ownRanges) {
+    for (const night of nightsFromRanges([range], loaded.from, loaded.until)) statuses[night] = range.status;
+  }
+  return statuses;
+}
+
+/** How many picked days are in each state. Only today and later days are counted by status. */
+export type RangeSummary = {
+  free: number;
+  booking: number;
+  /** pending + confirmed: guests, changed only in the reservation list. */
+  guests: number;
+  blocked: number;
+  /** Days before today: never blocked or unblocked. */
+  past: number;
+  /** Part of the range is outside the loaded months, so the counts are incomplete. */
+  unknown: boolean;
+};
+
+export function rangeSummary(
+  range: DayRange,
+  statuses: NightStatuses,
+  today: string,
+  loaded: LoadedWindow,
+): RangeSummary {
+  const summary: RangeSummary = { free: 0, booking: 0, guests: 0, blocked: 0, past: 0, unknown: false };
+  for (const day of daysInclusive(range.from, range.to)) {
+    if (day < today) summary.past++;
+    else if (day < loaded.from || day >= loaded.until) summary.unknown = true;
+    else if (!Object.hasOwn(statuses, day)) summary.free++;
+    else if (statuses[day] === "booking") summary.booking++;
+    else if (statuses[day] === "blocked") summary.blocked++;
+    else summary.guests++;
+  }
+  return summary;
+}
+
+/**
+ * Which buttons make sense. Without full knowledge (`unknown`) both stay on
+ * and the server decides; it checks everything again anyway.
+ */
+export function blockActions(summary: RangeSummary): { block: boolean; unblock: boolean } {
+  return {
+    block: summary.unknown || summary.free > 0,
+    unblock: summary.unknown || summary.blocked > 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Labels (formatted in UTC, so the day never shifts)
 // ---------------------------------------------------------------------------
+
+/** 1 → "1 dan", 2 → "2 dana", 21 → "21 dan" */
+export function daysLabel(count: number): string {
+  const t = adminText.calendar;
+  return plural("sr", count, { one: t.daysOne, few: t.daysFew, many: t.daysMany });
+}
 
 const dayMonthFormat = new Intl.DateTimeFormat(DATE_LOCALE, { day: "numeric", month: "short", timeZone: "UTC" });
 const longDateFormat = new Intl.DateTimeFormat(DATE_LOCALE, { dateStyle: "full", timeZone: "UTC" });
@@ -144,8 +227,7 @@ export function formatMonthTitle({ year, month }: YearMonth): string {
 
 /** "31. dec – 2. jan · 3 dana", or "31. dec · 1 dan" for a single day. */
 export function rangeLabel(range: DayRange): string {
-  const t = adminText.calendar;
-  const days = plural("sr", dayCount(range), { one: t.daysOne, few: t.daysFew, many: t.daysMany });
+  const days = daysLabel(dayCount(range));
   const from = formatDayMonth(range.from);
   return range.from === range.to ? `${from} · ${days}` : `${from} – ${formatDayMonth(range.to)} · ${days}`;
 }

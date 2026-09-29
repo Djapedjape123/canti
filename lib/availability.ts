@@ -1,21 +1,12 @@
 import "server-only";
-import { getBookingRanges, type BookingRange } from "./booking-ical";
-import { addDays } from "./dates";
-import { getReservationRanges } from "./reservations";
+import { nightStatuses, type LoadedWindow, type NightStatuses } from "./admin-calendar";
+import { getBookingRanges } from "./booking-ical";
+import { nightsFromRanges } from "./dates";
+import { getActiveReservationRanges, getReservationRanges } from "./reservations";
 
-/**
- * Every night covered by `ranges` inside [from, to), sorted, without duplicates.
- * Ranges are [start, end): the end date itself is free (check_out is exclusive).
- */
-export function nightsFromRanges(ranges: readonly BookingRange[], from: string, to: string): string[] {
-  const nights = new Set<string>();
-  for (const range of ranges) {
-    const first = range.start > from ? range.start : from;
-    const end = range.end < to ? range.end : to;
-    for (let night = first; night < end; night = addDays(night, 1)) nights.add(night);
-  }
-  return [...nights].sort();
-}
+// Lives in lib/dates.ts (the admin calendar needs it in the browser too);
+// exported here as well, where the public side has always imported it from.
+export { nightsFromRanges };
 
 /**
  * Nights that cannot be booked in [from, to), as 'YYYY-MM-DD'.
@@ -34,4 +25,26 @@ export async function getBlockedNights(
     getReservationRanges(apartmentId, from, to),
   ]);
   return nightsFromRanges([...bookingRanges, ...reservationRanges], from, to);
+}
+
+/**
+ * ADMIN ONLY: who holds each night of the loaded months (the colors of the
+ * admin calendar). Booking is read with the usual 10-minute cache. When it
+ * cannot be read, the calendar still shows our own reservations and says
+ * that the Booking dates are missing.
+ */
+export async function getAdminNightStatuses(
+  slug: string,
+  apartmentId: string,
+  window: LoadedWindow,
+): Promise<{ statuses: NightStatuses; bookingUnavailable: boolean }> {
+  const [bookingRanges, ownRanges] = await Promise.all([
+    // getBookingRanges already logs why it failed.
+    getBookingRanges(slug).catch(() => null),
+    getActiveReservationRanges(apartmentId, window.from, window.until),
+  ]);
+  return {
+    statuses: nightStatuses(bookingRanges ?? [], ownRanges, window),
+    bookingUnavailable: bookingRanges === null,
+  };
 }
