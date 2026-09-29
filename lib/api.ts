@@ -16,9 +16,9 @@ export async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-/** 400 with the first validation message (written in Serbian in lib/validation.ts). */
-export function validationError(error: { issues: ReadonlyArray<{ message: string }> }): Response {
-  return jsonError(error.issues[0]?.message ?? validationMessages.invalidRequest, 400);
+/** The first validation message (written in Serbian in lib/validation.ts), 400 unless told otherwise. */
+export function validationError(error: { issues: ReadonlyArray<{ message: string }> }, status = 400): Response {
+  return jsonError(error.issues[0]?.message ?? validationMessages.invalidRequest, status);
 }
 
 /** Logs where it failed and why, never the request data (no guest data in logs). */

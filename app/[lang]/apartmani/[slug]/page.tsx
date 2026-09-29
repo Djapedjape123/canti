@@ -15,6 +15,7 @@ import { addDays, todayInBelgrade } from "@/lib/dates";
 import { getDictionary } from "@/lib/dictionaries";
 import { fill, formatPrice } from "@/lib/format";
 import { apartmentPath, hasLocale, locales, localizedPath } from "@/lib/i18n";
+import { plural } from "@/lib/plural";
 import { lowestBasePrice } from "@/lib/pricing";
 
 export async function generateStaticParams() {
@@ -55,12 +56,21 @@ export default async function ApartmentPage({ params, searchParams }: PageProps<
   // Booked nights and the owner's prices for single nights, same window, loaded in parallel.
   // blocked = null: Booking calendar unavailable (already logged, without the URL, in lib/booking-ical.ts)
   const [blocked, overrides] = await Promise.all([
-    getBlockedNights(apartment.slug, today, until).catch(() => null),
+    getBlockedNights(apartment.slug, apartment.id, today, until).catch(() => null),
     getPriceOverrides(apartment.id, today, until),
   ]);
   const range = blocked
     ? rangeFromQuery(query.checkIn, query.checkOut, { today, until, blocked: new Set(blocked) })
     : { checkIn: null, checkOut: null };
+  const guestOptions = Array.from({ length: apartment.maxGuests }, (_, i) => ({
+    value: i + 1,
+    label: plural(lang, i + 1, { one: dict.search.guestOne, few: dict.search.guestFew, many: dict.search.guestMany }),
+  }));
+  // ?guests= from the search widget on the home page, kept within 1 … max_guests.
+  const guestsFromQuery = Number(query.guests);
+  const initialGuests = Number.isInteger(guestsFromQuery)
+    ? Math.min(Math.max(guestsFromQuery, 1), apartment.maxGuests)
+    : apartment.maxGuests;
   const fromPrice = lowestBasePrice(apartment);
   const priceLabel = `${dict.booking.from} ${formatPrice(fromPrice, lang)} ${dict.booking.perNight}`;
   const others = (await getApartments()).filter((a) => a.slug !== apartment.slug).slice(0, 3);
@@ -152,6 +162,7 @@ export default async function ApartmentPage({ params, searchParams }: PageProps<
                 labels={dict.booking}
                 whatsappLabel={dict.contact.whatsappLabel}
                 whatsappHref={whatsappHref(`${dict.contact.whatsappMessage} (${apartment.name})`)}
+                slug={apartment.slug}
                 prices={{
                   priceWeekday: apartment.priceWeekday,
                   priceFriday: apartment.priceFriday,
@@ -164,6 +175,8 @@ export default async function ApartmentPage({ params, searchParams }: PageProps<
                 blocked={blocked}
                 initialCheckIn={range.checkIn}
                 initialCheckOut={range.checkOut}
+                guestOptions={guestOptions}
+                initialGuests={initialGuests}
               />
             </div>
           </aside>

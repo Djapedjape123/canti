@@ -176,9 +176,19 @@ export const sr = {
     nightsFew: "{n} noći",
     selected: "{from} – {to}",
     submit: "Pošalji zahtev",
-    previewNote:
-      "Online rezervacija se uskoro uključuje. Do tada nam pišite na WhatsApp i proverićemo termin.",
+    submitting: "Šaljem…",
     requestNote: "Vlasnik potvrđuje svaki zahtev, obično u toku dana.",
+    pickDatesFirst: "Prvo izaberite datume dolaska i odlaska u kalendaru.",
+    guestName: "Ime i prezime",
+    guestEmail: "Mejl",
+    guestPhone: "Telefon",
+    guests: "Broj gostiju",
+    errorNetwork: "Slanje nije uspelo. Proverite internet vezu i pokušajte ponovo.",
+    successTitle: "Zahtev je poslat",
+    successBody:
+      "Vlasnik proverava termin i javlja vam se uskoro, obično u toku dana. Rezervacija važi kada je vlasnik potvrdi.",
+    bookAgain: "Nova rezervacija",
+    orWhatsapp: "Radije porukom? Pišite nam na WhatsApp.",
   },
   notFound: {
     title: "Stranica nije pronađena",

@@ -171,9 +171,19 @@ export const en: Dictionary = {
     nightsFew: "{n} nights",
     selected: "{from} – {to}",
     submit: "Send request",
-    previewNote:
-      "Online booking is being switched on soon. Until then, message us on WhatsApp and we will check the dates.",
+    submitting: "Sending…",
     requestNote: "The owner confirms every request, usually within the day.",
+    pickDatesFirst: "First choose your arrival and departure dates in the calendar.",
+    guestName: "Full name",
+    guestEmail: "Email",
+    guestPhone: "Phone",
+    guests: "Guests",
+    errorNetwork: "Sending failed. Check your internet connection and try again.",
+    successTitle: "Request sent",
+    successBody:
+      "The owner is checking the dates and will get back to you soon, usually within the day. The booking is final once the owner confirms it.",
+    bookAgain: "New booking",
+    orWhatsapp: "Prefer to message us? Write to us on WhatsApp.",
   },
   notFound: {
     title: "Page not found",

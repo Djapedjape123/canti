@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { addDays, todayInBelgrade } from "@/lib/dates";
 import {
   basePricesPatchSchema,
+  createReservationSchema,
   resetPricesSchema,
   setPricesSchema,
   slugSchema,
@@ -100,5 +102,82 @@ describe("basePricesPatchSchema (PATCH /api/admin/apartments/[slug])", () => {
   it("refuses a wrong price in any field", () => {
     expect(firstError(basePricesPatchSchema.safeParse({ price_weekday: 0 }))).toBe(m.price);
     expect(firstError(basePricesPatchSchema.safeParse({ price_saturday: "79" }))).toBe(m.price);
+  });
+});
+
+describe("createReservationSchema (POST /api/reservations)", () => {
+  // Dates relative to today, so the tests never go stale.
+  const today = todayInBelgrade();
+  const checkIn = addDays(today, 30);
+  const reservation = {
+    slug: "de-lux",
+    check_in: checkIn,
+    check_out: addDays(checkIn, 3),
+    guest_name: "Petar Petrović",
+    guest_email: "petar@example.com",
+    guest_phone: "+381 60 123 4567",
+    guests: 2,
+  };
+
+  it("accepts a valid request", () => {
+    expect(createReservationSchema.parse(reservation)).toEqual(reservation);
+  });
+
+  it("drops a price sent by the browser", () => {
+    expect(createReservationSchema.parse({ ...reservation, total_price: 1 })).not.toHaveProperty("total_price");
+  });
+
+  it("trims the name and the phone", () => {
+    const parsed = createReservationSchema.parse({ ...reservation, guest_name: "  Ana  ", guest_phone: " 0601234567 " });
+    expect(parsed.guest_name).toBe("Ana");
+    expect(parsed.guest_phone).toBe("0601234567");
+  });
+
+  it("accepts check-in today and refuses yesterday", () => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, check_in: today, check_out: addDays(today, 1) }))).toBeNull();
+    const yesterday = addDays(today, -1);
+    expect(
+      firstError(createReservationSchema.safeParse({ ...reservation, check_in: yesterday, check_out: addDays(yesterday, 2) })),
+    ).toBe(m.checkInPast);
+  });
+
+  it("accepts 1 and 30 nights", () => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, check_out: addDays(checkIn, 1) }))).toBeNull();
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, check_out: addDays(checkIn, 30) }))).toBeNull();
+  });
+
+  it("refuses 0 nights, check-out before check-in and more than 30 nights", () => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, check_out: checkIn }))).toBe(m.nightsRange);
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, check_out: addDays(checkIn, -2) }))).toBe(
+      m.nightsRange,
+    );
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, check_out: addDays(checkIn, 31) }))).toBe(
+      m.nightsRange,
+    );
+  });
+
+  it("refuses a date that does not exist", () => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, check_in: "2027-02-30" }))).toBe(m.date);
+  });
+
+  it.each(["", " ", "A", null, 5])("refuses the name %j", (guest_name) => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, guest_name }))).toBe(m.guestName);
+  });
+
+  it.each(["petar", "petar@", "@example.com", "", null])("refuses the email %j", (guest_email) => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, guest_email }))).toBe(m.guestEmail);
+  });
+
+  it.each(["123", "phone me", "060-abc-123", "", null])("refuses the phone %j", (guest_phone) => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, guest_phone }))).toBe(m.guestPhone);
+  });
+
+  it.each([0, -1, 1.5, 21, "2", null])("refuses the guest count %j", (guests) => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, guests }))).toBe(m.guests);
+  });
+
+  it("refuses an unknown apartment slug and a body that is not an object", () => {
+    expect(firstError(createReservationSchema.safeParse({ ...reservation, slug: "De Lux" }))).toBe(m.slug);
+    expect(firstError(createReservationSchema.safeParse(undefined))).toBe(m.invalidRequest);
   });
 });

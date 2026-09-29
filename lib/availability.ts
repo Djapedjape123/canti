@@ -1,6 +1,7 @@
 import "server-only";
 import { getBookingRanges, type BookingRange } from "./booking-ical";
 import { addDays } from "./dates";
+import { getReservationRanges } from "./reservations";
 
 /**
  * Every night covered by `ranges` inside [from, to), sorted, without duplicates.
@@ -18,14 +19,19 @@ export function nightsFromRanges(ranges: readonly BookingRange[], from: string, 
 
 /**
  * Nights that cannot be booked in [from, to), as 'YYYY-MM-DD'.
+ * Booked = Booking iCal ∪ our reservations (pending, confirmed, blocked).
  * Only dates go out of here, never where they came from.
  * Throws BookingIcalError when Booking cannot be read and nothing is cached.
  */
-export async function getBlockedNights(slug: string, from: string, to: string): Promise<string[]> {
-  const bookingRanges = await getBookingRanges(slug);
-
-  // TODO(Supabase): add our own reservations with status pending, confirmed or blocked
-  // (booked = Booking iCal ∪ our reservations). They are [check_in, check_out) ranges
-  // too, so they go through nightsFromRanges together with bookingRanges.
-  return nightsFromRanges(bookingRanges, from, to);
+export async function getBlockedNights(
+  slug: string,
+  apartmentId: string,
+  from: string,
+  to: string,
+): Promise<string[]> {
+  const [bookingRanges, reservationRanges] = await Promise.all([
+    getBookingRanges(slug),
+    getReservationRanges(apartmentId, from, to),
+  ]);
+  return nightsFromRanges([...bookingRanges, ...reservationRanges], from, to);
 }
