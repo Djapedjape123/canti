@@ -530,7 +530,6 @@ Ako Dan 9 kasni, redosled sekcija za skraćivanje (poslednje otpada prvo): Utisc
 
 ## Otvorena pitanja (pitaj me pre nego što odlučiš sam)
 
-- `max_guests` za De Lux (trenutno pretpostavka: 2)
 - Check-in / check-out vreme, kućni red, parking, udaljenost do centra
 - Tačna adresa (za mapu i JSON-LD)
 - Broj za WhatsApp/Viber, Instagram nalog
