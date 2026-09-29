@@ -12,6 +12,11 @@
   --color-ink-900: #1c2626;
   --color-ink-600: #55605f;
 
+  /* Reservation status in the admin panel. Light fills: text on them is ink-900. */
+  --color-status-pending: #f4e2a6;
+  --color-status-confirmed: #d2e5cd;
+  --color-status-blocked: #dddcd6;
+
   --animate-hero-zoom: hero-zoom 1.8s ease-out both;
 
   @keyframes hero-zoom {

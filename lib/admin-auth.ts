@@ -1,6 +1,7 @@
 import "server-only";
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { ADMIN_FORBIDDEN_PATH, ADMIN_LOGIN_PATH, isOwnerEmail } from "./admin-access";
 import { adminText } from "./admin-text";
 import { createSupabaseServerClient } from "./supabase/server";
@@ -9,12 +10,13 @@ import { createSupabaseServerClient } from "./supabase/server";
 // route and page checks again here: a changed matcher must never be enough to
 // open the admin panel.
 
-async function getCurrentUser(): Promise<User | null> {
+// cache(): the admin layout and the page both check, but Supabase Auth is asked once per request.
+const getCurrentUser = cache(async (): Promise<User | null> => {
   const supabase = await createSupabaseServerClient();
   // getUser() asks Supabase Auth to verify the session; a cookie alone is not trusted.
   const { data } = await supabase.auth.getUser();
   return data.user;
-}
+});
 
 export type AdminCheck = { ok: true; user: User } | { ok: false; response: Response };
 

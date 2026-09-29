@@ -1,6 +1,9 @@
 import "server-only";
+import { PAST_LIMIT, type AdminReservation, type StatusFilter } from "./admin-reservations";
+import { getApartments } from "./apartments";
 import type { BookingRange } from "./booking-ical";
 import { getSupabaseAdmin } from "./supabase/admin";
+import type { ReservationRow } from "./supabase/types";
 
 /** Statuses that hold the dates. A cancelled reservation frees them. */
 export const BLOCKING_STATUSES = ["pending", "confirmed", "blocked"] as const;
@@ -21,4 +24,72 @@ export async function getReservationRanges(apartmentId: string, from: string, to
     .gt("check_out", from);
   if (error) throw new Error(`Loading reservations failed: ${error.message}`);
   return data.map((row) => ({ start: row.check_in, end: row.check_out }));
+}
+
+// ---------------------------------------------------------------------------
+// Admin panel only: these read guest names and contacts.
+// ---------------------------------------------------------------------------
+
+const ADMIN_COLUMNS =
+  "id, apartment_id, check_in, check_out, guest_name, guest_email, guest_phone, guests, total_price, status, source, created_at";
+
+function reservationsWith(filter: StatusFilter) {
+  const query = getSupabaseAdmin().from("reservations").select(ADMIN_COLUMNS);
+  return filter === "all" ? query : query.eq("status", filter);
+}
+
+function toAdminReservation(row: ReservationRow, apartmentNames: Map<string, string>): AdminReservation {
+  return {
+    id: row.id,
+    apartmentName: apartmentNames.get(row.apartment_id) ?? "",
+    checkIn: row.check_in,
+    checkOut: row.check_out,
+    guestName: row.guest_name,
+    guestEmail: row.guest_email,
+    guestPhone: row.guest_phone,
+    guests: row.guests,
+    totalPrice: row.total_price,
+    status: row.status,
+    source: row.source,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * The admin list, split in two:
+ * - upcoming: still ahead or under way (check_out >= today, so a guest who
+ *   leaves today is still here), soonest arrival first, all of them;
+ * - past: the latest PAST_LIMIT stays that are over, newest first.
+ */
+export async function getReservationsForAdmin(
+  filter: StatusFilter,
+  today: string,
+): Promise<{ upcoming: AdminReservation[]; past: AdminReservation[] }> {
+  const [apartments, upcoming, past] = await Promise.all([
+    getApartments(),
+    reservationsWith(filter).gte("check_out", today).order("check_in").order("created_at"),
+    reservationsWith(filter)
+      .lt("check_out", today)
+      .order("check_in", { ascending: false })
+      .limit(PAST_LIMIT),
+  ]);
+  if (upcoming.error) throw new Error(`Loading reservations failed: ${upcoming.error.message}`);
+  if (past.error) throw new Error(`Loading reservations failed: ${past.error.message}`);
+
+  const apartmentNames = new Map(apartments.map((apartment) => [apartment.id, apartment.name]));
+  return {
+    upcoming: upcoming.data.map((row) => toAdminReservation(row, apartmentNames)),
+    past: past.data.map((row) => toAdminReservation(row, apartmentNames)),
+  };
+}
+
+/** Requests that still wait for the owner. Old ones (the stay is over) are not counted. */
+export async function countPendingReservations(today: string): Promise<number> {
+  const { count, error } = await getSupabaseAdmin()
+    .from("reservations")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending")
+    .gte("check_out", today);
+  if (error) throw new Error(`Counting pending reservations failed: ${error.message}`);
+  return count ?? 0;
 }

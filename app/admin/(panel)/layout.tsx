@@ -1,12 +1,29 @@
 import type { ReactNode } from "react";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { LogoutButton } from "@/components/admin/LogoutButton";
+import { requireAdminPage } from "@/lib/admin-auth";
 import { adminText } from "@/lib/admin-text";
+import { todayInBelgrade } from "@/lib/dates";
+import { countPendingReservations } from "@/lib/reservations";
+
+/** A broken count must never take the price calendar down with it: no badge instead. */
+async function loadPendingCount(): Promise<number | null> {
+  try {
+    return await countPendingReservations(todayInBelgrade());
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "Counting pending reservations failed");
+    return null;
+  }
+}
 
 // Header of every admin page after login: petrol bar, brand, navigation, logout.
 // Simple on purpose (no animations, big touch targets): the owner mostly uses a phone.
-// Each page checks the login itself with requireAdminPage().
-export default function AdminPanelLayout({ children }: { children: ReactNode }) {
+// Each page still checks the login itself with requireAdminPage(); the layout
+// checks too, because it reads from the database (the pending count).
+export default async function AdminPanelLayout({ children }: { children: ReactNode }) {
+  await requireAdminPage();
+  const pendingCount = await loadPendingCount();
+
   return (
     <>
       <header className="bg-brand-800 text-cream-50">
@@ -21,7 +38,7 @@ export default function AdminPanelLayout({ children }: { children: ReactNode }) 
             <LogoutButton />
           </div>
           <div className="w-full md:order-2 md:w-auto">
-            <AdminNav />
+            <AdminNav pendingCount={pendingCount} />
           </div>
         </div>
       </header>
