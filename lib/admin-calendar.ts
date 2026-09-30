@@ -133,6 +133,9 @@ export type NightStatuses = Record<string, NightStatus>;
 /** One of our reservations: only its dates and status, never guest data. */
 export type OwnRange = { start: string; end: string; status: ActiveStatus };
 
+/** Which pending/confirmed reservation holds a night (lib/reservations.ts). */
+export type NightReservation = { id: string; guestName: string | null; hasEmail: boolean };
+
 /**
  * The status of every taken night in the loaded window.
  * When a night is both on Booking and ours, OUR status is shown: an old block
@@ -193,6 +196,26 @@ export function blockActions(summary: RangeSummary): { block: boolean; unblock: 
     block: summary.unknown || summary.free > 0,
     unblock: summary.unknown || summary.blocked > 0,
   };
+}
+
+/**
+ * The reservation the whole picked range belongs to — only when every picked
+ * day is a night of the SAME pending/confirmed reservation. null when the
+ * range is not entirely inside one guest reservation (mixed with free/blocked
+ * days, or spans two reservations); the calendar then falls back to pointing
+ * at the reservations list instead of offering a direct cancel button.
+ */
+export function guestReservationInRange(
+  range: DayRange,
+  byNight: Record<string, NightReservation>,
+): NightReservation | null {
+  let found: NightReservation | null = null;
+  for (const day of daysInclusive(range.from, range.to)) {
+    const entry = byNight[day];
+    if (!entry || (found && found.id !== entry.id)) return null;
+    found = entry;
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------------------

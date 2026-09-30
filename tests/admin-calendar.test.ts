@@ -7,6 +7,7 @@ import {
   formatLongDate,
   formatMonthTitle,
   formatYearMonth,
+  guestReservationInRange,
   isInRange,
   loadedWindow,
   NO_SELECTION,
@@ -18,6 +19,7 @@ import {
   rangeSummary,
   selectedRange,
   type DaySelection,
+  type NightReservation,
   type RangeSummary,
 } from "@/lib/admin-calendar";
 import type { BasePrices } from "@/lib/pricing";
@@ -219,5 +221,32 @@ describe("range summary and buttons", () => {
 
   it("leaves both on when part of the range is not loaded (the server decides)", () => {
     expect(blockActions({ ...none, unknown: true })).toEqual({ block: true, unblock: true });
+  });
+});
+
+describe("which reservation a picked range belongs to", () => {
+  const ana: NightReservation = { id: "ana", guestName: "Ana Anić", hasEmail: true };
+  const marko: NightReservation = { id: "marko", guestName: null, hasEmail: false };
+  const byNight: Record<string, NightReservation> = {
+    "2026-10-10": ana,
+    "2026-10-11": ana,
+    "2026-10-12": marko,
+  };
+
+  it("finds the reservation when the whole range is its nights", () => {
+    expect(guestReservationInRange({ from: "2026-10-10", to: "2026-10-11" }, byNight)).toEqual(ana);
+    expect(guestReservationInRange({ from: "2026-10-10", to: "2026-10-10" }, byNight)).toEqual(ana);
+  });
+
+  it("has no guest name when the reservation was made without a mejl (phone guest)", () => {
+    expect(guestReservationInRange({ from: "2026-10-12", to: "2026-10-12" }, byNight)).toEqual(marko);
+  });
+
+  it("returns null when the range spans two reservations", () => {
+    expect(guestReservationInRange({ from: "2026-10-11", to: "2026-10-12" }, byNight)).toBeNull();
+  });
+
+  it("returns null when part of the range is a free or blocked day", () => {
+    expect(guestReservationInRange({ from: "2026-10-09", to: "2026-10-10" }, byNight)).toBeNull();
   });
 });

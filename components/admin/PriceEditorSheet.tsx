@@ -5,15 +5,26 @@ import { useEffect, useState, type SubmitEvent } from "react";
 import { buttonClasses } from "@/components/ui/Button";
 import { ADMIN_LOGIN_PATH } from "@/lib/admin-access";
 import { blockNotice, readBlockResult, readCount, summaryLines, unblockNotice } from "@/lib/admin-blocks";
-import { blockActions, parsePriceInput, rangeLabel, type DayRange, type RangeSummary } from "@/lib/admin-calendar";
+import {
+  blockActions,
+  parsePriceInput,
+  rangeLabel,
+  type DayRange,
+  type NightReservation,
+  type RangeSummary,
+} from "@/lib/admin-calendar";
+import { readGuestNotified, statusChangeNotice } from "@/lib/admin-reservations";
 import { sendAdminChange } from "@/lib/admin-request";
 import { adminText } from "@/lib/admin-text";
 
 const t = adminText.editor;
 const b = adminText.blocks;
 const f = adminText.form;
+const g = adminText.reservations.actions;
+const noGuestName = adminText.reservations.noGuestName;
 
 type Action = "save" | "reset" | "block" | "unblock";
+type ErrorAction = Action | "cancelGuest";
 
 /** Where each button sends the picked days. */
 const REQUESTS = {
@@ -33,13 +44,15 @@ type PriceEditorSheetProps = {
   initialPrice: number | null;
   /** Who holds the picked days; decides which of Blokiraj / Odblokiraj are on. */
   summary: RangeSummary | null;
+  /** Set when the whole picked range is one pending/confirmed reservation. */
+  guestReservation: NightReservation | null;
   /** Result of the last save, shown after the editor closes. */
   notice: string | null;
   onCancel: () => void;
   onDone: (notice: string) => void;
 };
 
-type EditorError = { action: Action; message: string; login: boolean };
+type EditorError = { action: ErrorAction; message: string; login: boolean };
 
 /**
  * Phone: a sheet fixed to the bottom of the screen. Desktop (lg): a panel next
@@ -52,13 +65,15 @@ export function PriceEditorSheet({
   waitingForLastDay,
   initialPrice,
   summary,
+  guestReservation,
   notice,
   onCancel,
   onDone,
 }: PriceEditorSheetProps) {
   const [value, setValue] = useState(initialPrice === null ? "" : String(initialPrice));
   const [error, setError] = useState<EditorError | null>(null);
-  const [pending, setPending] = useState<Action | null>(null);
+  const [pending, setPending] = useState<ErrorAction | null>(null);
+  const [askingGuestCancel, setAskingGuestCancel] = useState(false);
 
   // Esc closes the editor (not while a save is running).
   useEffect(() => {
@@ -133,6 +148,24 @@ export function PriceEditorSheet({
     void send("save");
   }
 
+  async function cancelGuestReservation() {
+    if (!guestReservation) return;
+    setPending("cancelGuest");
+    setError(null);
+    const result = await sendAdminChange(
+      `/api/admin/reservations/${encodeURIComponent(guestReservation.id)}`,
+      "PATCH",
+      { status: "cancelled" },
+    );
+    if (!result.ok) {
+      setError({ action: "cancelGuest", message: result.message, login: result.login });
+      setPending(null);
+      return;
+    }
+    setAskingGuestCancel(false);
+    onDone(statusChangeNotice("cancelled", readGuestNotified(result.data)));
+  }
+
   const errorMessage = error ? (
     <p
       id="price-error"
@@ -148,6 +181,7 @@ export function PriceEditorSheet({
     </p>
   ) : null;
   const isBlockError = error?.action === "block" || error?.action === "unblock";
+  const isGuestError = error?.action === "cancelGuest";
 
   return (
     <section
@@ -203,7 +237,7 @@ export function PriceEditorSheet({
         </div>
       </form>
 
-      {isBlockError ? null : errorMessage}
+      {isBlockError || isGuestError ? null : errorMessage}
 
       <button
         type="button"
@@ -243,6 +277,51 @@ export function PriceEditorSheet({
         </div>
         {isBlockError ? errorMessage : null}
       </div>
+
+      {guestReservation ? (
+        <div className="mt-4 border-t border-sand-200 pt-3">
+          <h3 className="text-sm font-semibold text-ink-900">{guestReservation.guestName ?? noGuestName}</h3>
+          {askingGuestCancel ? (
+            <>
+              <p className="mt-1 font-semibold text-ink-900">{g.cancelQuestion}</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-ink-600">
+                {guestReservation.hasEmail ? g.cancelHintEmail : g.cancelHintNoEmail}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void cancelGuestReservation()}
+                  disabled={pending !== null}
+                  className={buttonClasses("dark", "px-3")}
+                >
+                  {pending === "cancelGuest" ? g.cancelling : g.cancelYes}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAskingGuestCancel(false)}
+                  disabled={pending !== null}
+                  className={buttonClasses("outline-dark", "px-3")}
+                >
+                  {g.cancelNo}
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setAskingGuestCancel(true);
+              }}
+              disabled={pending !== null}
+              className={buttonClasses("outline-dark", "mt-2 w-full")}
+            >
+              {g.cancel}
+            </button>
+          )}
+          {isGuestError ? errorMessage : null}
+        </div>
+      ) : null}
     </section>
   );
 }

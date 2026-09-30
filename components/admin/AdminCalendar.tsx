@@ -10,6 +10,7 @@ import {
   formatLongDate,
   formatMonthTitle,
   formatYearMonth,
+  guestReservationInRange,
   isInRange,
   NO_SELECTION,
   nextDaySelection,
@@ -17,6 +18,7 @@ import {
   selectedRange,
   type DaySelection,
   type LoadedWindow,
+  type NightReservation,
   type NightStatus,
   type NightStatuses,
   type YearMonth,
@@ -52,6 +54,8 @@ type AdminCalendarProps = {
   overrides: PriceOverrides;
   /** Who holds each night in the loaded window; a free night has no entry. */
   statuses: NightStatuses;
+  /** Which pending/confirmed reservation holds each night (for "Otkaži rezervaciju"). */
+  guestReservations: Record<string, NightReservation>;
   /** Booking.com could not be read: its nights may be missing from `statuses`. */
   bookingUnavailable: boolean;
   loaded: LoadedWindow;
@@ -71,6 +75,7 @@ export function AdminCalendar({
   apartment,
   overrides,
   statuses,
+  guestReservations,
   bookingUnavailable,
   loaded,
   shown,
@@ -268,6 +273,7 @@ export function AdminCalendar({
         waitingForLastDay={selection.start !== null && selection.end === null}
         initialPrice={range ? commonPrice(range, apartment.prices, overrides, loaded) : null}
         summary={range ? rangeSummary(range, statuses, today, loaded) : null}
+        guestReservation={range ? guestReservationInRange(range, guestReservations) : null}
         notice={notice}
         onCancel={() => setSelection(NO_SELECTION)}
         onDone={finish}

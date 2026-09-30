@@ -1,8 +1,9 @@
 import "server-only";
-import type { ActiveStatus, OwnRange } from "./admin-calendar";
+import type { ActiveStatus, NightReservation, OwnRange } from "./admin-calendar";
 import { PAST_LIMIT, type AdminReservation, type StatusFilter } from "./admin-reservations";
 import { getApartments } from "./apartments";
 import type { BookingRange } from "./booking-ical";
+import { nightsFromRanges } from "./dates";
 import { getSupabaseAdmin } from "./supabase/admin";
 import type { ReservationRow } from "./supabase/types";
 
@@ -41,6 +42,36 @@ export async function getReservationRanges(apartmentId: string, from: string, to
 // ---------------------------------------------------------------------------
 // Admin panel only: these read guest names and contacts.
 // ---------------------------------------------------------------------------
+
+/**
+ * ADMIN ONLY: which pending/confirmed reservation holds each night in
+ * [from, to). Blocked nights have no guest, so they are left out — those are
+ * still cancelled through the calendar's own Blokiraj/Odblokiraj. Lets the
+ * calendar offer "Otkaži rezervaciju" when the picked days are one reservation.
+ */
+export async function getGuestReservationsByNight(
+  apartmentId: string,
+  from: string,
+  to: string,
+): Promise<Record<string, NightReservation>> {
+  const { data, error } = await getSupabaseAdmin()
+    .from("reservations")
+    .select("id, check_in, check_out, guest_name, guest_email")
+    .eq("apartment_id", apartmentId)
+    .in("status", ["pending", "confirmed"])
+    .lt("check_in", to)
+    .gt("check_out", from);
+  if (error) throw new Error(`Loading reservations failed: ${error.message}`);
+
+  const byNight: Record<string, NightReservation> = {};
+  for (const row of data) {
+    const reservation = { id: row.id, guestName: row.guest_name, hasEmail: row.guest_email !== null };
+    for (const night of nightsFromRanges([{ start: row.check_in, end: row.check_out }], from, to)) {
+      byNight[night] = reservation;
+    }
+  }
+  return byNight;
+}
 
 const ADMIN_COLUMNS =
   "id, apartment_id, check_in, check_out, guest_name, guest_email, guest_phone, guests, total_price, status, source, created_at";

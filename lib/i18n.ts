@@ -14,9 +14,9 @@ export const htmlLang: Record<Locale, string> = {
   en: "en",
 };
 
-/** Locale used by Intl (prices, dates). */
+/** Locale used by Intl (prices, dates). "sr-RS" alone renders Cyrillic in Node's ICU. */
 export const intlLocale: Record<Locale, string> = {
-  sr: "sr-RS",
+  sr: "sr-Latn-RS",
   en: "en-GB",
 };
 

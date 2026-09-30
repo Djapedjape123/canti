@@ -56,6 +56,7 @@ export default async function AdminCalendarPage({ searchParams }: PageProps<"/ad
         }}
         overrides={overrides}
         statuses={nights.statuses}
+        guestReservations={nights.guestReservations}
         bookingUnavailable={nights.bookingUnavailable}
         loaded={loaded}
         shown={shown}

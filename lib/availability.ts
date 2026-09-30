@@ -1,8 +1,8 @@
 import "server-only";
-import { nightStatuses, type LoadedWindow, type NightStatuses } from "./admin-calendar";
+import { nightStatuses, type LoadedWindow, type NightReservation, type NightStatuses } from "./admin-calendar";
 import { getBookingRanges } from "./booking-ical";
 import { nightsFromRanges } from "./dates";
-import { getActiveReservationRanges, getReservationRanges } from "./reservations";
+import { getActiveReservationRanges, getGuestReservationsByNight, getReservationRanges } from "./reservations";
 
 // Lives in lib/dates.ts (the admin calendar needs it in the browser too);
 // exported here as well, where the public side has always imported it from.
@@ -37,14 +37,20 @@ export async function getAdminNightStatuses(
   slug: string,
   apartmentId: string,
   window: LoadedWindow,
-): Promise<{ statuses: NightStatuses; bookingUnavailable: boolean }> {
-  const [bookingRanges, ownRanges] = await Promise.all([
+): Promise<{
+  statuses: NightStatuses;
+  bookingUnavailable: boolean;
+  guestReservations: Record<string, NightReservation>;
+}> {
+  const [bookingRanges, ownRanges, guestReservations] = await Promise.all([
     // getBookingRanges already logs why it failed.
     getBookingRanges(slug).catch(() => null),
     getActiveReservationRanges(apartmentId, window.from, window.until),
+    getGuestReservationsByNight(apartmentId, window.from, window.until),
   ]);
   return {
     statuses: nightStatuses(bookingRanges ?? [], ownRanges, window),
     bookingUnavailable: bookingRanges === null,
+    guestReservations,
   };
 }
