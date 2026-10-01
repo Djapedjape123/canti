@@ -35,7 +35,7 @@ export function SearchWidget({ labels, guestOptions, targetPath }: SearchWidgetP
     <form
       onSubmit={onSubmit}
       aria-label={labels.title}
-      className="grid grid-cols-2 gap-3 rounded-xl bg-cream-50 p-4 text-left shadow-lg md:p-5 lg:grid-cols-[1fr_1fr_0.8fr_auto] lg:items-end lg:gap-4"
+      className="grid grid-cols-2 gap-3 rounded-xl bg-cream-50/90 p-4 text-left shadow-lg ring-1 ring-cream-50/60 backdrop-blur-md md:p-5 lg:grid-cols-[1fr_1fr_0.8fr_auto] lg:items-end lg:gap-4"
     >
       <label className="text-xs font-semibold uppercase tracking-[0.15em] text-ink-600">
         {labels.checkIn}

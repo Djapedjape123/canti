@@ -19,6 +19,7 @@
   --color-status-booking: #d3e2f0;
 
   --animate-hero-zoom: hero-zoom 1.8s ease-out both;
+  --animate-bounce-soft: bounce-soft 2.2s ease-in-out infinite;
 
   @keyframes hero-zoom {
     from {
@@ -26,6 +27,16 @@
     }
     to {
       transform: scale(1);
+    }
+  }
+
+  @keyframes bounce-soft {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(6px);
     }
   }
 }

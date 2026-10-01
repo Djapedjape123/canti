@@ -1,6 +1,7 @@
 import type { Dictionary } from "@/lib/dictionaries";
 import { fill } from "@/lib/format";
 import { Container } from "@/components/ui/Container";
+import { Icon } from "@/components/ui/Icon";
 import { Photo } from "@/components/ui/Photo";
 import { SearchWidget } from "./SearchWidget";
 
@@ -57,6 +58,13 @@ export function Hero({ dict, image, fromPrice, guestOptions, searchTarget }: Her
           </p>
         </div>
       </Container>
+
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-6 hidden justify-center md:flex"
+      >
+        <Icon name="chevronDown" className="size-6 animate-bounce-soft text-cream-50/60" strokeWidth={1.5} />
+      </div>
     </section>
   );
 }
