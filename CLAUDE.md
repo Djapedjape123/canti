@@ -392,7 +392,7 @@ Sav tekst je u `lib/content.ts`. Gde podatak nije potvrđen, stoji `TODO(vlasnik
 
 ## Van obima demoa (NE pravi dok ne kažem)
 
-Ovo je iz paketa u predlogu i dolazi posle demoa: AI asistent, kviz "Koji apartman je pravi za Vas", prekidač srpski/engleski, vremenska prognoza, generator poklon vaučera, mid-week tajmer za popuste, upsell dodaci pri rezervaciji (kao checkbox sa cenom), generator linka za kaparu, "trenutno gledano" indikator, sezonski baner, automatski mejl podsetnik, QR check-in vodič, mesečni izveštaj, "uporedi apartmane" prekidač, Google kalendar kao izvor.
+Ovo je iz paketa u predlogu i dolazi posle demoa: AI asistent, kviz "Koji apartman je pravi za Vas", prekidač srpski/engleski,  generator poklon vaučera, mid-week tajmer za popuste, upsell dodaci pri rezervaciji (kao checkbox sa cenom),"trenutno gledano" indikator, sezonski baner, automatski mejl podsetnik, QR check-in vodič, mesečni izveštaj, Google kalendar kao izvor.
 
 Kod ipak piši tako da se ovo kasnije lako doda: tekstovi na jednom mestu (za prevod), komponente sekcija nezavisne jedna od druge.
 
